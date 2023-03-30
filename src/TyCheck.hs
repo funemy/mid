@@ -1,22 +1,12 @@
 module TyCheck () where
 
+import Env
 import Lang (Name, Term (..))
+import Prelude hiding (lookup)
 
 type Depth = Int
 
-newtype NameSpace = NameSpace [(Name, Depth)]
-
-emptyNS :: NameSpace
-emptyNS = NameSpace []
-
-lookupNS :: Name -> NameSpace -> Maybe Int
-lookupNS n (NameSpace []) = Nothing
-lookupNS n (NameSpace ((n', d) : xs))
-    | n == n' = Just d
-    | otherwise = lookupNS n (NameSpace xs)
-
-extendNS :: Name -> Depth -> NameSpace -> NameSpace
-extendNS n d (NameSpace xs) = NameSpace ((n, d) : xs)
+type NameSpace = Env Depth
 
 -- the auxliary function for alpha equivalence checking
 alphaEquiv' :: Int -> NameSpace -> Term -> NameSpace -> Term -> Bool
@@ -30,7 +20,7 @@ alphaEquiv' _ _ Atom _ Atom = True
 alphaEquiv' _ _ Universe _ Universe = True
 alphaEquiv' _ _ Refl _ Refl = True
 alphaEquiv' _ _ (Quote s1) _ (Quote s2) = s1 == s2
-alphaEquiv' _ ns1 (Var n1) ns2 (Var n2) = lookupNS n1 ns1 == lookupNS n2 ns2
+alphaEquiv' _ ns1 (Var n1) ns2 (Var n2) = lookup ns1 n1 == lookup ns2 n2
 -- inductive cases
 alphaEquiv' d ns1 (App t11 t12) ns2 (App t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
 alphaEquiv' d ns1 (MkPair t11 t12) ns2 (MkPair t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
@@ -57,22 +47,22 @@ alphaEquiv' d ns1 (IndNat t11 t12 t13 t14) ns2 (IndNat t21 t22 t23 t24) =
 -- interesting cases
 alphaEquiv' d ns1 (Pi n1 t11 t12) ns2 (Pi n2 t21 t22) =
     let equiv1 = alphaEquiv' d ns1 t11 ns2 t21
-        ns1' = extendNS n1 d ns1
-        ns2' = extendNS n2 d ns2
+        ns1' = extend ns1 n1 d
+        ns2' = extend ns2 n2 d
         equiv2 = alphaEquiv' (d + 1) ns1' t12 ns2' t22
      in equiv1 && equiv2
 alphaEquiv' d ns1 (Lam n1 t1) ns2 (Lam n2 t2) =
-    let ns1' = extendNS n1 d ns1
-        ns2' = extendNS n2 d ns2
+    let ns1' = extend ns1 n1 d
+        ns2' = extend ns2 n2 d
      in alphaEquiv' (d + 1) ns1' t1 ns2' t2
 alphaEquiv' d ns1 (Sigma n1 t11 t12) ns2 (Sigma n2 t21 t22) =
     let equiv1 = alphaEquiv' d ns1 t11 ns2 t21
-        ns1' = extendNS n1 d ns1
-        ns2' = extendNS n2 d ns2
+        ns1' = extend ns1 n1 d
+        ns2' = extend ns2 n2 d
         equiv2 = alphaEquiv' (d + 1) ns1' t12 ns2' t22
      in equiv1 && equiv2
 -- fallback case
 alphaEquiv' _ _ _ _ _ = False
 
 alphaEquiv :: Term -> Term -> Bool
-alphaEquiv t1 t2 = alphaEquiv' 0 emptyNS t1 emptyNS t2
+alphaEquiv t1 t2 = alphaEquiv' 0 emptyEnv t1 emptyEnv t2

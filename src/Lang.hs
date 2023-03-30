@@ -10,6 +10,7 @@ instance Show Name where
 
 -- TODO: add List and Vec
 -- TODO: add Either
+-- FIXME: missing sym/cong/trans for equality
 data Term
     = Var Name
     | Pi Name Term Term
@@ -23,22 +24,39 @@ data Term
     | Nat
     | Zero
     | Succ Term
-    | IndNat Term Term Term Term
+    | -- indNat has the same signature as ATAPL
+      -- 1st term: the Property (Nat -> U)
+      -- 2nd term: the base case (p 0)
+      -- 3rd term: the inductive case
+      -- 4th term: the number
+      IndNat Term Term Term Term
     | -- Equality type
-      Equal Term Term
+      -- The 1st argument is the type of the 2nd and 3rd
+      -- TODO: we should be able to infer the 1st argument
+      Equal Term Term Term
     | -- Ctor for Equality types (i.e., refl)
       -- I'm curious about this, isn't `refl` in Agda takes implicit arguments?
       Refl
     | -- Substitution on equal terms
-      -- FIXME: missing sym/cong/trans
+      -- Given a property p of some type A, a proof that p holds on an element x : A,
+      -- and a proof of x = y (y, of course, should also be of type A),
+      -- returns a proof that p also holds on y
+      -- 1st term: property p
+      -- 2nd term: proof of the first property on x, i.e., (p x)
+      -- 3rd term: equality proof of x=y
       Subst Term Term Term
     | UnitTy
     | Unit
     | Absurd
-    | IndAbsrud Term Term
+    | -- Induction principle for Absurd
+      -- Given a proposition we want to prove, and a proof of absurdity,
+      -- returns a proof of the target proposition
+      -- 1st term: the proposition p we want to prove, p : U
+      -- 2nd term: a proof of absurdity
+      IndAbsurd Term Term
     | -- Atom type as in "The Litte Typer"
       Atom
-    | -- Ctor for Atom
+    | -- Ctor for Atom values
       Quote String
     | Universe
     | -- Type annotation (ascription)
@@ -63,13 +81,13 @@ instance Show Term where
     show Zero = "0"
     show n@(Succ _) = show $ toInt n
     show (IndNat ty t1 t2 t3) = printf "(ind-nat %s %s %s %s)" (show ty) (show t1) (show t2) (show t3)
-    show (Equal ty ty') = printf "%s≡%s" (show ty) (show ty')
+    show (Equal ty t1 t2) = printf "%s:%s≡%s" (show t1) (show ty) (show t2)
     show Refl = "refl"
     show (Subst t1 t2 t3) = printf "(subst %s %s %s)" (show t1) (show t2) (show t3)
     show UnitTy = "Unit"
     show Unit = "()"
     show Absurd = "⊥"
-    show (IndAbsrud e ty) = printf "(ind-absurd %s %s)" (show e) (show ty)
+    show (IndAbsurd e ty) = printf "(ind-absurd %s %s)" (show e) (show ty)
     show Atom = "Atom"
     show (Quote s) = printf "'%s" s
     show Universe = "U"

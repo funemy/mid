@@ -17,12 +17,12 @@ data Closure = Closure
 -- E.g., an application whose first element is a variable.
 data Neutral
     = NVar Name
-    | NApp Neutral Val
+    | NApp Neutral Normal
     | NFst Neutral
     | NSnd Neutral
-    | NIndNat Val Val Val Neutral
-    | NSubst Val Val Neutral
-    | NIndAbsurd Val Neutral
+    | NIndNat Normal Normal Normal Neutral
+    | NSubst Normal Normal Neutral
+    | NIndAbsurd Normal Neutral
     deriving (Show)
 
 -- The definition of Value should correspond to each ctor defined in Term
@@ -52,4 +52,13 @@ data Val
     | VQuote String
     | VUniverse
     | VNeutral Ty Neutral
+    deriving (Show)
+
+-- Normal form
+-- This is the resulting form we want for normalization.
+-- Also the form which we will readback to recover a Term.
+--
+-- Notice that we do not need to include neutral terms here,
+-- because neutral terms are also values (VNeutral)
+data Normal = Normal Ty Val
     deriving (Show)

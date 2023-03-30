@@ -42,6 +42,7 @@ data Term
       Quote String
     | Universe
     | -- Type annotation (ascription)
+      -- The first term is term, the second term is type
       As Term Term
 
 toInt :: Term -> Int

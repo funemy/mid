@@ -38,6 +38,9 @@ alphaEquiv' d ns1 (Fst t1) ns2 (Fst t2) = alphaEquiv' d ns1 t1 ns2 t2
 alphaEquiv' d ns1 (Snd t1) ns2 (Snd t2) = alphaEquiv' d ns1 t1 ns2 t2
 alphaEquiv' d ns1 (Succ t1) ns2 (Succ t2) = alphaEquiv' d ns1 t1 ns2 t2
 alphaEquiv' d ns1 (IndAbsrud t11 t12) ns2 (IndAbsrud t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
+-- Special case:
+-- If two terms can be type cheked to be Absurd, then they are alpha equivalent no matter what
+alphaEquiv' _ _ (As _ Absurd) _ (As _ Absurd) = True
 alphaEquiv' d ns1 (As t11 t12) ns2 (As t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
 alphaEquiv' d ns1 (Equal t11 t12) ns2 (Equal t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
 alphaEquiv' d ns1 (Subst t11 t12 t13) ns2 (Subst t21 t22 t23) =

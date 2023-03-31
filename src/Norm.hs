@@ -99,8 +99,17 @@ doSnd = \case
 doIndNat :: Val -> Val -> Val -> Val -> Res Val
 doIndNat = undefined
 
+-- FIXME: Need double check the impl
 doSubst :: Val -> Val -> Val -> Res Val
-doSubst = undefined
+doSubst prop pfA = \case
+    VRefl -> Right pfA
+    VNeutral (VEqual _ a _) eq -> do
+        -- The proposition (p x) (notice the type of p is A -> U)
+        ty' <- doApp prop a
+        let propNorm = Normal VUniverse prop
+        let pfANorm = Normal ty' pfA
+        Right $ VNeutral ty' (NSubst propNorm pfANorm eq)
+    t -> Left $ errMsgNorm "substituing on non-equality proof" t
 
 doIndAbsurd :: Val -> Val -> Res Val
 doIndAbsurd prop = \case

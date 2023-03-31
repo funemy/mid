@@ -1,7 +1,7 @@
 module Norm (Val (..)) where
 
 import Env
-import Err (errMsgNorm)
+import Err (errMsg, errMsgNorm)
 import Lang (Name, Term (..))
 import Prelude hiding (lookup)
 
@@ -103,7 +103,11 @@ doSubst :: Val -> Val -> Val -> Res Val
 doSubst = undefined
 
 doIndAbsurd :: Val -> Val -> Res Val
-doIndAbsurd = undefined
+doIndAbsurd prop = \case
+    VNeutral VAbsurd neu ->
+        let propNorm = Normal VUniverse prop
+         in Right $ VNeutral prop (NIndAbsurd propNorm neu)
+    t -> Left $ errMsgNorm "using induction principle for absuridity on non-absurd value" t
 
 -- Eval function
 eval :: Env Val -> Term -> Res Val

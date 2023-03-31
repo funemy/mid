@@ -1,6 +1,7 @@
-module Env (Env (..), emptyEnv, lookup, extend, freshen) where
+module Env (Env (..), emptyEnv, lookup, extend, freshen, Res) where
 
 import Data.Bifunctor (Bifunctor (second))
+import Err (ErrMsg (..))
 import Lang (Name (..))
 import Prelude hiding (lookup)
 
@@ -13,13 +14,10 @@ emptyEnv = Env []
 instance Functor Env where
     fmap f (Env xs) = Env (map (second f) xs)
 
-newtype Msg = Msg String
-    deriving (Show, Eq)
-
-type Res v = Either Msg v
+type Res v = Either ErrMsg v
 
 failure :: String -> Res v
-failure = Left . Msg
+failure = Left . ErrMsg
 
 lookup :: Env v -> Name -> Res v
 lookup (Env []) (Name n) = failure ("Not found identifier: " ++ n)

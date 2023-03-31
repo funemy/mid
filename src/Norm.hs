@@ -100,7 +100,6 @@ doIndAbsurd :: Val -> Val -> Res Val
 doIndAbsurd = undefined
 
 -- Eval function
--- That b
 eval :: Env Val -> Term -> Res Val
 eval env (Var n) = lookup env n
 eval env (Pi n tyA tyB) = do

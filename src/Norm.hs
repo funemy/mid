@@ -74,7 +74,13 @@ evalCls (Closure env name body) v =
 -- For each elimination form (except NVar?)
 -- There should be a separate helper function, to keep eval simple
 doApp :: Val -> Val -> Res Val
-doApp = undefined
+doApp f a = case f of
+    VLam cls -> evalCls cls a
+    VNeutral (VPi tyA cls) func -> do
+        tyB <- evalCls cls a
+        let aNorm = Normal tyA a
+        Right $ VNeutral tyB (NApp func aNorm)
+    t -> Left $ errMsgNorm "applying a non-function" t
 
 doFst :: Val -> Res Val
 doFst = \case

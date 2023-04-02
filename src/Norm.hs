@@ -239,8 +239,6 @@ reify = _
 reify' :: Ctx -> Ty -> Val -> Term
 reify' = _
 
--- TODO: I still need to think about the difference between eval and reflect
--- To me, it seems more like eval is doing the beta-reduction
--- and reflect is doing the eta-expansion
+-- reflect does the eta-expansion
 reflect :: Term -> Val
 reflect = undefined

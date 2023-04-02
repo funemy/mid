@@ -216,18 +216,31 @@ eval _ (Quote s) = Right (VQuote s)
 eval _ Universe = Right VUniverse
 eval env (As t _) = eval env t
 
-reify :: Normal -> Term
-reify = undefined
+-- Typing context for dependent type checking
+-- In DT system, typing context consists of two parts
+-- 1. The normal typing ctx, i.e., a mapping from variables to their types
+-- 2. The definition ctx, i.e., a mapping from variables to their definitions
+--
+-- The reason for having the definition ctx is that we can have expressions in the types now.
+-- Those expressions might refer to existing definitions (e.g., calling a type-level function.)
+type Ctx = (TyCtx, DefCtx)
+
+type TyCtx = Env Ty
+
+type DefCtx = Env (Ty, Val)
+
+-- AKA readback
+-- Convert normal forms back into terms, guided by type.
+-- The reification in dependent-type system is slightly different from simpler systems.
+-- NOTE: In DT-language, reification can happen during type checking, therefore it requires a typing context as its first argument.
+reify :: Ctx -> Normal -> Term
+reify = _
+
+reify' :: Ctx -> Ty -> Val -> Term
+reify' = _
 
 -- TODO: I still need to think about the difference between eval and reflect
 -- To me, it seems more like eval is doing the beta-reduction
 -- and reflect is doing the eta-expansion
 reflect :: Term -> Val
 reflect = undefined
-
-type Definition = Normal
-
-type Defs = Env Definition
-
-addDefs :: Defs -> [(Name, Term)] -> Res Defs
-addDefs = undefined

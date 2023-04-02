@@ -1,8 +1,8 @@
 module Norm (Val (..)) where
 
 import Env
-import Err (errMsg, errMsgNorm)
-import Lang (Name, Term (..))
+import Err (errMsgNorm)
+import Lang (Name (..), Term (..))
 import Prelude hiding (lookup)
 
 -- Types are nothing special but values
@@ -65,6 +65,17 @@ data Val
 data Normal = Normal Ty Val
     deriving (Show)
 
+-- Helper function for generating function type vales such as A->B
+-- Function types are encoded as Pi-types.
+-- Since the return type of VPi is a closure (i.e., its normalzation is delayed),
+-- the second arg of this function is a Term (instead of Val).
+-- NOTE:
+-- This function is for creating function types whose input and output types are simple.
+-- E.g., Nat -> Nat, Nat -> U
+-- No sanity check is performed, use carefully.
+vArrow :: Val -> Term -> Val
+vArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "_dummy") ty2)
+
 -- Helper function for evaluating closures
 evalCls :: Closure -> Val -> Res Val
 evalCls (Closure env name body) v =
@@ -97,9 +108,38 @@ doSnd = \case
     t -> Left $ errMsgNorm "projecting a non-pair value" t
 
 doIndNat :: Val -> Val -> Val -> Val -> Res Val
-doIndNat = undefined
+doIndNat prop base ind = \case
+    VZero -> Right base
+    VSucc n -> do
+        a <- doIndNat prop base ind n
+        f <- doApp ind n
+        doApp f a
+    neu@(VNeutral VNat n) -> do
+        ty <- doApp prop neu
+        baseTy <- doApp prop VZero
+        indTy <- indStepTy prop
+        let propTy = vArrow VNat Universe
+        let prop' = Normal propTy prop
+        let base' = Normal baseTy base
+        let ind' = Normal indTy ind
+        Right $ VNeutral ty (NIndNat prop' base' ind' n)
+    t -> Left $ errMsgNorm "using induction principle for nat on non-nat value" t
+  where
+    -- The type foa the induction step is quite complicated.
+    -- So the way we construct it is to write a closed term, and call `eval` on it.
+    -- Be careful, we also need to provide the correct Env when calling eval.
+    -- The type for induction step is: \Pi n : Nat . p n -> p (n+1),
+    -- where p is the property on natural number introduced by outer scope.
+    indStepTy :: Val -> Res Val
+    indStepTy pVal =
+        let n = Name "n"
+            nVar = Var n
+            p = Name "p"
+            pVar = Var p
+            t = Pi n Nat (Pi (Name "_dummy") (App pVar nVar) (App pVar (Succ nVar)))
+            env = Env [(Name "p", pVal)]
+         in eval env t
 
--- FIXME: Need double check the impl
 doSubst :: Val -> Val -> Val -> Res Val
 doSubst prop pfA = \case
     VRefl -> Right pfA

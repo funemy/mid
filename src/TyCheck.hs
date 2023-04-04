@@ -108,8 +108,8 @@ toEnv (Env ((n, e) : xs)) = extend rest n v
         Def _ val -> val
 
 -- isXXXs below are a set of helper functions used in type checking
--- The functions in the tutorial requires TyCtx mostly for debugging.
--- We will keep the functions simple for the moment.
+-- In the tutorial, these functions require TyCtx mostly for debugging.
+-- We will keep the functions simple for the moment (instead of requiring TyCtx).
 isPi :: Ty -> Res (Ty, Closure)
 isPi (VPi tyA cls) = Right (tyA, cls)
 isPi ty = Left $ errMsgTyCk "expect a Pi type, but got" ty
@@ -157,9 +157,9 @@ infer ctx (Succ n) = do
     ty <- infer ctx n
     isNat ty
     Right VNat
-infer ctx (IndNat te te' te2 te3) = _wO
-infer ctx (Equal te te' te2) = _wP
-infer ctx (Subst te te' te2) = _wR
+infer ctx (IndNat prop base ind nat) = _wO
+infer ctx (Equal ty t1 t2) = _wP
+infer ctx (Subst p px eq) = _wR
 infer _ UnitTy = Right VUniverse
 infer _ Unit = Right VUnitTy
 infer _ Absurd = Right VUniverse
@@ -167,7 +167,13 @@ infer ctx (IndAbsurd te te') = _wV
 infer _ Atom = Right VUniverse
 infer _ (Quote s) = Right VAtom
 infer _ Universe = Right VUniverse
-infer ctx (As te te') = _wZ
+infer ctx (As t ty) = do
+    -- NOTE: this check guarantees that ty is actually a type
+    -- otherwise it can be an arbitrary term
+    check ctx ty VUniverse
+    ty' <- eval (toEnv ctx) ty
+    check ctx t ty'
+    Right ty'
 infer _ t = Left $ errMsgTyCk "No inference rule for" t
 
 check :: TyCtx -> Term -> Ty -> Res ()

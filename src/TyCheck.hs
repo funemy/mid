@@ -114,6 +114,10 @@ isPi :: Ty -> Res (Ty, Closure)
 isPi (VPi tyA cls) = Right (tyA, cls)
 isPi ty = Left $ errMsgTyCk "expect a Pi type, but got" ty
 
+isSigma :: Ty -> Res (Ty, Closure)
+isSigma (VSigma tyA cls) = Right (tyA, cls)
+isSigma ty = Left $ errMsgTyCk "expect a Sigma type, but got" ty
+
 isNat :: Ty -> Res ()
 isNat VNat = Right ()
 isNat ty = Left $ errMsgTyCk "expect a Nat type, but got" ty
@@ -137,9 +141,16 @@ infer ctx (Sigma n tyA tyB) = do
     tyA' <- eval (toEnv ctx) tyA
     check (extend ctx n (Decl tyA')) tyB VUniverse
     Right VUniverse
-infer ctx (MkPair te te') = _wI
-infer ctx (Fst te) = _wJ
-infer ctx (Snd te) = _wK
+infer ctx (Fst p) = do
+    pTy <- infer ctx p
+    (tyA, _) <- isSigma pTy
+    Right tyA
+infer ctx (Snd p) = do
+    pTy <- infer ctx p
+    (_, cls) <- isSigma pTy
+    l <- eval (toEnv ctx) (Fst p)
+    tyB <- evalCls cls l
+    Right tyB
 infer _ Nat = Right VUniverse
 infer _ Zero = Right VNat
 infer ctx (Succ n) = do

@@ -1,69 +1,18 @@
-module Norm (Val (..)) where
+module Norm () where
 
 import Env
 import Err (errMsgNorm)
 import Lang (Name (..), Term (..))
+import TyCheck (
+    Closure (..),
+    Neutral (..),
+    Normal (..),
+    Ty,
+    TyCtx,
+    TyCtxEntry (..),
+    Val (..),
+ )
 import Prelude hiding (lookup)
-
--- Types are nothing special but values
-type Ty = Val
-
-data Closure = Closure
-    { cEnv :: Env Val
-    , cName :: Name
-    , cBody :: Term
-    }
-    deriving (Show, Eq)
-
--- Neutral terms are terms in elimination form, but cannot be reduced.
--- E.g., an application whose first element is a variable.
-data Neutral
-    = NVar Name
-    | NApp Neutral Normal
-    | NFst Neutral
-    | NSnd Neutral
-    | NIndNat Normal Normal Normal Neutral
-    | NSubst Normal Normal Neutral
-    | NIndAbsurd Normal Neutral
-    deriving (Show, Eq)
-
--- The definition of Value should correspond to each ctor defined in Term
--- (Notice not all elements of Term are ctor, e.g., Fst and Snd are eliminator)
---
--- The special ctors in the value definition in a DT language are VPi and VSigma
--- Both of them are constructing types whose second element dependent the first.
--- In other words, the second element is a function (at type-level, conceptually).
--- Therefore, we represent them as VPi Ty Closure (VSigma has the same def),
--- where Ty represents the first element (a non-dependent type).
---
--- Since in DT-language, types and terms are the same thing, the Ty is simply a type synonym for readability
-data Val
-    = VPi Ty Closure
-    | VLam Closure
-    | VSigma Ty Closure
-    | VMkPair Val Val
-    | VNat
-    | VZero
-    | VSucc Val
-    | VEqual Ty Val Val
-    | VRefl
-    | VUnitTy
-    | VUnit
-    | VAbsurd
-    | VAtom
-    | VQuote String
-    | VUniverse
-    | VNeutral Ty Neutral
-    deriving (Show, Eq)
-
--- Normal form
--- This is the resulting form we want for normalization.
--- Also the form which we will readback to recover a Term.
---
--- Notice that we do not need to include neutral terms here,
--- because neutral terms are also values (VNeutral)
-data Normal = Normal Ty Val
-    deriving (Show, Eq)
 
 -- Helper function for generating function type vales such as A->B
 -- Function types are encoded as Pi-types.
@@ -215,23 +164,6 @@ eval _ Atom = Right VAtom
 eval _ (Quote s) = Right (VQuote s)
 eval _ Universe = Right VUniverse
 eval env (As t _) = eval env t
-
--- Typing context for dependent type checking
--- In DT system, typing context consists of two kinds of entries
--- 1. Variable declarations (abstractions?),
--- i.e., mappings from variable names to their types, introduced by Lam, Pi, and Sigma.
--- 2. Definitions, i.e., mappings from variable names to their definitions (values)
---
--- The reason for having the definition ctx is that we can have expressions in the types now.
--- Those expressions might refer to existing definitions (e.g., calling a type-level function.)
--- We could in theory having two contexts and manage them separately,
--- but that would complicate things like shadowing and computing used names.
-data TyCtxEntry
-    = Decl Ty
-    | Def Ty Val
-    deriving (Show)
-
-type TyCtx = Env TyCtxEntry
 
 -- AKA readback
 -- Convert normal forms back into terms, guided by type.

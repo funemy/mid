@@ -112,11 +112,11 @@ toEnv (Env ((n, e) : xs)) = extend rest n v
 -- We will keep the functions simple for the moment.
 isPi :: Ty -> Res (Ty, Closure)
 isPi (VPi tyA cls) = Right (tyA, cls)
-isPi ty = Left $ errMsgTyCk "Expect a Pi type, but got" ty
+isPi ty = Left $ errMsgTyCk "expect a Pi type, but got" ty
 
 isNat :: Ty -> Res ()
 isNat VNat = Right ()
-isNat ty = Left $ errMsgTyCk "Expect a Nat type, but got" ty
+isNat ty = Left $ errMsgTyCk "expect a Nat type, but got" ty
 
 infer :: TyCtx -> Term -> Res Ty
 infer ctx (Var n) = lookupTy ctx n
@@ -132,7 +132,11 @@ infer ctx (App f a) = do
     aVal <- eval (toEnv ctx) a
     tyB <- evalCls cls aVal
     Right tyB
-infer ctx (Sigma na te te') = _wH
+infer ctx (Sigma n tyA tyB) = do
+    check ctx tyA VUniverse
+    tyA' <- eval (toEnv ctx) tyA
+    check (extend ctx n (Decl tyA')) tyB VUniverse
+    Right VUniverse
 infer ctx (MkPair te te') = _wI
 infer ctx (Fst te) = _wJ
 infer ctx (Snd te) = _wK

@@ -63,6 +63,7 @@ data Term
       -- 1st term: term,
       -- 2nd term: type
       As Term Term
+    deriving (Eq)
 
 toInt :: Term -> Int
 toInt Zero = 0

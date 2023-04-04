@@ -13,7 +13,7 @@ data Closure = Closure
     , cName :: Name
     , cBody :: Term
     }
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- Neutral terms are terms in elimination form, but cannot be reduced.
 -- E.g., an application whose first element is a variable.
@@ -25,7 +25,7 @@ data Neutral
     | NIndNat Normal Normal Normal Neutral
     | NSubst Normal Normal Neutral
     | NIndAbsurd Normal Neutral
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- The definition of Value should correspond to each ctor defined in Term
 -- (Notice not all elements of Term are ctor, e.g., Fst and Snd are eliminator)
@@ -54,7 +54,7 @@ data Val
     | VQuote String
     | VUniverse
     | VNeutral Ty Neutral
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- Normal form
 -- This is the resulting form we want for normalization.
@@ -63,7 +63,7 @@ data Val
 -- Notice that we do not need to include neutral terms here,
 -- because neutral terms are also values (VNeutral)
 data Normal = Normal Ty Val
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- Helper function for generating function type vales such as A->B
 -- Function types are encoded as Pi-types.
@@ -217,28 +217,118 @@ eval _ Universe = Right VUniverse
 eval env (As t _) = eval env t
 
 -- Typing context for dependent type checking
--- In DT system, typing context consists of two parts
--- 1. The normal typing ctx, i.e., a mapping from variables to their types
--- 2. The definition ctx, i.e., a mapping from variables to their definitions
+-- In DT system, typing context consists of two kinds of entries
+-- 1. Variable declarations (abstractions?),
+-- i.e., mappings from variable names to their types, introduced by Lam, Pi, and Sigma.
+-- 2. Definitions, i.e., mappings from variable names to their definitions (values)
 --
 -- The reason for having the definition ctx is that we can have expressions in the types now.
 -- Those expressions might refer to existing definitions (e.g., calling a type-level function.)
-type Ctx = (TyCtx, DefCtx)
+-- We could in theory having two contexts and manage them separately,
+-- but that would complicate things like shadowing and computing used names.
+data TyCtxEntry
+    = Decl Ty
+    | Def Ty Val
+    deriving (Show)
 
-type TyCtx = Env Ty
-
-type DefCtx = Env (Ty, Val)
+type TyCtx = Env TyCtxEntry
 
 -- AKA readback
 -- Convert normal forms back into terms, guided by type.
 -- The reification in dependent-type system is slightly different from simpler systems.
 -- NOTE: In DT-language, reification can happen during type checking, therefore it requires a typing context as its first argument.
-reify :: Ctx -> Normal -> Term
-reify = _
+reify :: TyCtx -> Normal -> Res Term
+reify ctx (Normal ty val) = reify' ctx ty val
 
-reify' :: Ctx -> Ty -> Val -> Term
-reify' = _
+-- Notice that when pattern matching the second argument,
+-- we only match against those values that represent types.
+reify' :: TyCtx -> Ty -> Val -> Res Term
+-- terms
+reify' ctx (VPi tyA cls@(Closure _ n _)) f = do
+    let xName = freshen (names ctx) n
+    let xVal = VNeutral tyA (NVar xName)
+    retTy <- evalCls cls xVal
+    app <- doApp f xVal
+    body' <- reify' (extend ctx xName (Decl tyA)) retTy app
+    Right $ Lam xName body'
+reify' ctx (VSigma tyA cls) p = do
+    l <- doFst p
+    r <- doSnd p
+    tyB <- evalCls cls l
+    l' <- reify' ctx tyA l
+    r' <- reify' ctx tyB r
+    Right $ MkPair l' r'
+reify' _ VNat VZero = Right Zero
+reify' ctx VNat (VSucc n) = do
+    n' <- reify' ctx VNat n
+    Right (Succ n')
+reify' _ (VEqual{}) VRefl = Right Refl
+-- any terms with unit type can only be Unit
+reify' _ VUnitTy _ = Right Unit
+reify' _ VAtom (VQuote s) = Right (Quote s)
+-- types
+reify' _ VUniverse VNat = Right Nat
+reify' _ VUniverse VUnitTy = Right UnitTy
+reify' _ VUniverse VAtom = Right Atom
+reify' _ VUniverse VAbsurd = Right Absurd
+reify' ctx VUniverse (VPi tyA cls@(Closure _ n _)) = do
+    tyA' <- reify' ctx VUniverse tyA
+    let xName = freshen (names ctx) n
+    let xVal = VNeutral tyA (NVar xName)
+    tyB <- evalCls cls xVal
+    tyB' <- reify' (extend ctx xName (Decl xVal)) VUniverse tyB
+    Right $ Pi xName tyA' tyB'
+reify' ctx VUniverse (VSigma tyA cls@(Closure _ n _)) = do
+    tyA' <- reify' ctx VUniverse tyA
+    let xName = freshen (names ctx) n
+    let xVal = VNeutral tyA (NVar xName)
+    tyB <- evalCls cls xVal
+    tyB' <- reify' (extend ctx xName (Decl xVal)) VUniverse tyB
+    Right $ Sigma xName tyA' tyB'
+reify' ctx VUniverse (VEqual ty t1 t2) = do
+    ty' <- reify' ctx VUniverse ty
+    t1' <- reify' ctx ty t1
+    t2' <- reify' ctx ty t2
+    Right $ Equal ty' t1' t2'
+-- universe
+-- NOTE: I'm not sure about this
+reify' _ VUniverse VUniverse = Right Universe
+-- neutral terms
+-- NOTE: I'm not sure how absurd should be handled properly
+reify' ctx VAbsurd (VNeutral VAbsurd neu) = do
+    neu' <- reifyNeu ctx neu
+    Right (As neu' Absurd)
+reify' ctx ty (VNeutral ty' neu) =
+    if ty == ty'
+        then reifyNeu ctx neu
+        else Left $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty)
+-- invalid patterns
+reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 
--- reflect does the eta-expansion
-reflect :: Term -> Val
-reflect = undefined
+reifyNeu :: TyCtx -> Neutral -> Res Term
+reifyNeu ctx (NVar n) = Right $ Var n
+reifyNeu ctx (NApp f a) = do
+    f' <- reifyNeu ctx f
+    a' <- reify ctx a
+    Right $ App f' a'
+reifyNeu ctx (NFst p) = do
+    p' <- reifyNeu ctx p
+    Right $ Fst p'
+reifyNeu ctx (NSnd p) = do
+    p' <- reifyNeu ctx p
+    Right $ Snd p'
+reifyNeu ctx (NIndNat norm1 norm2 norm3 neu) = do
+    norm1' <- reify ctx norm1
+    norm2' <- reify ctx norm2
+    norm3' <- reify ctx norm3
+    neu' <- reifyNeu ctx neu
+    Right $ IndNat norm1' norm2' norm3' neu'
+reifyNeu ctx (NSubst norm1 norm2 neu) = do
+    norm1' <- reify ctx norm1
+    norm2' <- reify ctx norm2
+    neu' <- reifyNeu ctx neu
+    Right $ Subst norm1' norm2' neu'
+reifyNeu ctx (NIndAbsurd norm neu) = do
+    norm' <- reify ctx norm
+    neu' <- reifyNeu ctx neu
+    Right $ IndAbsurd norm' (As neu' Absurd)

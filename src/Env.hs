@@ -1,4 +1,12 @@
-module Env (Env (..), emptyEnv, lookup, extend, freshen, Res) where
+module Env (
+    Env (..),
+    Res,
+    emptyEnv,
+    extend,
+    freshen,
+    lookup,
+    names,
+) where
 
 import Data.Bifunctor (Bifunctor (second))
 import Err (ErrMsg (..))
@@ -27,6 +35,9 @@ lookup (Env ((x, v) : xs)) n
 
 extend :: Env v -> Name -> v -> Env v
 extend (Env xs) n val = Env ((n, val) : xs)
+
+names :: Env v -> [Name]
+names (Env env) = map fst env
 
 -- Given a list of used names and a proposed name,
 -- return a non-conflicting name

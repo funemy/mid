@@ -30,6 +30,10 @@ alphaEquiv' d ns1 (Succ t1) ns2 (Succ t2) = alphaEquiv' d ns1 t1 ns2 t2
 alphaEquiv' d ns1 (IndAbsurd t11 t12) ns2 (IndAbsurd t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
 -- Special case:
 -- If two terms can be type cheked to be Absurd, then they are alpha equivalent no matter what
+-- When encountering an absurd term, we just annotate them with type Absurd
+-- so the terms are alpha-equivalent no matter what.
+-- Otherwise, we don't have a way of type-checking them, because Absurd
+-- has no inhabitant.
 alphaEquiv' _ _ (As _ Absurd) _ (As _ Absurd) = True
 alphaEquiv' d ns1 (As t11 t12) ns2 (As t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
 alphaEquiv' d ns1 (Equal t11 t12 t13) ns2 (Equal t21 t22 t23) =

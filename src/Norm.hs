@@ -4,6 +4,12 @@ module Norm (
     reify,
     reify',
     indStepTy,
+    doApp,
+    doFst,
+    doSnd,
+    doIndAbsurd,
+    doIndNat,
+    doSubst,
 ) where
 
 import Env

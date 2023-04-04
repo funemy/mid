@@ -14,7 +14,7 @@ import Lang (
     TyCtxEntry (..),
     Val (..),
  )
-import Norm (eval, evalCls, indStepTy, reify')
+import Norm (doApp, eval, evalCls, indStepTy, reify')
 import Prelude hiding (lookup)
 
 type Depth = Int
@@ -122,6 +122,10 @@ isNat :: Ty -> Res ()
 isNat VNat = Right ()
 isNat ty = Left $ errMsgTyCk "expect a Nat type, but got" ty
 
+isEq :: Ty -> Res (Ty, Val, Val)
+isEq (VEqual ty t1 t2) = Right (ty, t1, t2)
+isEq ty = Left $ errMsgTyCk "expect an Equal type, but got" ty
+
 infer :: TyCtx -> Term -> Res Ty
 infer ctx (Var n) = lookupTy ctx n
 infer ctx (Pi n tyA tyB) = do
@@ -174,8 +178,35 @@ infer ctx (IndNat prop base ind nat) = do
     -- conclusion: prop nat
     propN <- eval (toEnv ctx) (App prop nat)
     Right propN
-infer ctx (Equal ty t1 t2) = _wP
-infer ctx (Subst p px eq) = _wR
+infer ctx (Equal ty t1 t2) = do
+    check ctx ty VUniverse
+    tyV <- eval (toEnv ctx) ty
+    check ctx t1 tyV
+    check ctx t2 tyV
+    Right VUniverse
+infer ctx (Subst prop propX eq) = do
+    eqTy <- infer ctx eq
+    (tyA, x, y) <- isEq eqTy
+    -- A trick for constructing this pi type
+    -- since tyA is a value instead of a term, we represent the type as a variable
+    -- and provide the actual type value in the env, then let `eval` take over.
+    let tyName = Name "ty"
+    propTy <- eval (Env [(tyName, tyA)]) (Pi (Name "x") (Var tyName) Universe)
+    -- check propX is indeed a proof of (prop x)
+    -- (x came from the Equal type)
+    --
+    -- FIXME: calling `doApp` here is unsatisfying, because I want all doXXXs to be hidden
+    -- in the Norm module.
+    -- In theory we can still make things work by only calling `eval`,
+    -- but that also requires creating dummy variables and extending the env.
+    -- No satisfying solution for now :(.
+    check ctx prop propTy
+    propV <- eval (toEnv ctx) prop
+    propXTy <- doApp propV x
+    check ctx propX propXTy
+    -- constructing the return type, i.e., prop y
+    propYTy <- doApp propV y
+    Right propYTy
 infer _ UnitTy = Right VUniverse
 infer _ Unit = Right VUnitTy
 infer _ Absurd = Right VUniverse
@@ -194,17 +225,8 @@ infer _ t = Left $ errMsgTyCk "No inference rule for" t
 
 check :: TyCtx -> Term -> Ty -> Res ()
 check ctx (Lam na te) ty = _w12
-check ctx (App te te') ty = _w13
-check ctx (Sigma na te te') ty = _w14
-check ctx (MkPair te te') ty = _w15
-check ctx (Fst te) ty = _w16
-check ctx (Snd te) ty = _w17
-check ctx (IndNat te te' te2 te3) ty = _w1b
-check ctx (Equal te te' te2) ty = _w1c
+check ctx (MkPair l r) ty = _w15
 check ctx Refl ty = _w1d
-check ctx (Subst te te' te2) ty = _w1e
-check ctx (IndAbsurd te te') ty = _w1i
-check ctx (As te te') ty = _w1m
 -- subsumption
 check ctx t ty1 = do
     ty2 <- infer ctx t

@@ -126,6 +126,10 @@ isEq :: Ty -> Res (Ty, Val, Val)
 isEq (VEqual ty t1 t2) = Right (ty, t1, t2)
 isEq ty = Left $ errMsgTyCk "expect an Equal type, but got" ty
 
+isAbsurd :: Ty -> Res ()
+isAbsurd VAbsurd = Right ()
+isAbsurd ty = Left $ errMsgTyCk "expect an Absurd type, but got" ty
+
 infer :: TyCtx -> Term -> Res Ty
 infer ctx (Var n) = lookupTy ctx n
 infer ctx (Pi n tyA tyB) = do
@@ -210,7 +214,12 @@ infer ctx (Subst prop propX eq) = do
 infer _ UnitTy = Right VUniverse
 infer _ Unit = Right VUnitTy
 infer _ Absurd = Right VUniverse
-infer ctx (IndAbsurd te te') = _wV
+infer ctx (IndAbsurd ty absurd) = do
+    absurdTy <- infer ctx absurd
+    isAbsurd absurdTy
+    check ctx ty VUniverse
+    tyV <- eval (toEnv ctx) ty
+    Right tyV
 infer _ Atom = Right VUniverse
 infer _ (Quote _) = Right VAtom
 infer _ Universe = Right VUniverse

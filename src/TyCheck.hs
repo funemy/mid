@@ -4,9 +4,9 @@ module TyCheck (
 import Env
 import Err (errMsgTyCk)
 import Lang (
-    Closure,
+    Closure (..),
     Env (..),
-    Name,
+    Name (..),
     Neutral (..),
     Term (..),
     Ty,
@@ -14,7 +14,7 @@ import Lang (
     TyCtxEntry (..),
     Val (..),
  )
-import Norm (eval, evalCls, reify')
+import Norm (eval, evalCls, indStepTy, reify')
 import Prelude hiding (lookup)
 
 type Depth = Int
@@ -157,7 +157,23 @@ infer ctx (Succ n) = do
     ty <- infer ctx n
     isNat ty
     Right VNat
-infer ctx (IndNat prop base ind nat) = _wO
+infer ctx (IndNat prop base ind nat) = do
+    -- nat => Nat
+    natTy <- infer ctx nat
+    isNat natTy
+    -- prop <= Pi x : Nat. U
+    propTy <- eval emptyEnv (Pi (Name "x") Nat Universe)
+    check ctx prop propTy
+    -- base <= prop 0
+    propZ <- eval (toEnv ctx) (App prop Zero)
+    check ctx base propZ
+    -- ind <= Pi k : Nat . prop k -> prop (k+1)
+    propV <- eval (toEnv ctx) prop
+    propK <- indStepTy propV
+    check ctx ind propK
+    -- conclusion: prop nat
+    propN <- eval (toEnv ctx) (App prop nat)
+    Right propN
 infer ctx (Equal ty t1 t2) = _wP
 infer ctx (Subst p px eq) = _wR
 infer _ UnitTy = Right VUniverse
@@ -165,7 +181,7 @@ infer _ Unit = Right VUnitTy
 infer _ Absurd = Right VUniverse
 infer ctx (IndAbsurd te te') = _wV
 infer _ Atom = Right VUniverse
-infer _ (Quote s) = Right VAtom
+infer _ (Quote _) = Right VAtom
 infer _ Universe = Right VUniverse
 infer ctx (As t ty) = do
     -- NOTE: this check guarantees that ty is actually a type

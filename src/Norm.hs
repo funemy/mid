@@ -3,6 +3,7 @@ module Norm (
     evalCls,
     reify,
     reify',
+    indStepTy,
 ) where
 
 import Env
@@ -80,21 +81,26 @@ doIndNat prop base ind = \case
         let ind' = Normal indTy ind
         Right $ VNeutral ty (NIndNat prop' base' ind' n)
     t -> Left $ errMsgNorm "using induction principle for nat on non-nat value" t
-  where
-    -- The type foa the induction step is quite complicated.
-    -- So the way we construct it is to write a closed term, and call `eval` on it.
-    -- Be careful, we also need to provide the correct Env when calling eval.
-    -- The type for induction step is: \Pi n : Nat . p n -> p (n+1),
-    -- where p is the property on natural number introduced by outer scope.
-    indStepTy :: Val -> Res Val
-    indStepTy pVal =
-        let n = Name "n"
-            nVar = Var n
-            p = Name "p"
-            pVar = Var p
-            t = Pi n Nat (Pi (Name "_dummy") (App pVar nVar) (App pVar (Succ nVar)))
-            env = Env [(Name "p", pVal)]
-         in eval env t
+
+-- Helper function for constructing the types for the inductive step of natural numbers
+-- 1st param: a property of natural numbers (normalzed to value)
+--
+-- The way this function works is to construct a closed term for the type of inductive step,
+-- and call `eval` on it.
+--
+-- NOTE: Be careful, we need to provide the correct Env when calling `eval`.
+-- The type for induction step is: \Pi n : Nat . p n -> p (n+1),
+-- where p is the property on natural number introduced by outer scope.
+-- NOTE: This function is also helpful in type checking
+indStepTy :: Val -> Res Val
+indStepTy pVal =
+    let n = Name "n"
+        nVar = Var n
+        p = Name "p"
+        pVar = Var p
+        t = Pi n Nat (Pi (Name "_dummy") (App pVar nVar) (App pVar (Succ nVar)))
+        env = Env [(Name "p", pVal)]
+     in eval env t
 
 doSubst :: Val -> Val -> Val -> Res Val
 doSubst prop pfA = \case

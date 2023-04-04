@@ -1,5 +1,4 @@
 module Env (
-    Env (..),
     Res,
     emptyEnv,
     extend,
@@ -8,19 +7,12 @@ module Env (
     names,
 ) where
 
-import Data.Bifunctor (Bifunctor (second))
 import Err (ErrMsg (..))
-import Lang (Name (..))
+import Lang (Env (..), Name (..))
 import Prelude hiding (lookup)
-
-newtype Env v = Env [(Name, v)]
-    deriving (Show, Eq)
 
 emptyEnv :: Env v
 emptyEnv = Env []
-
-instance Functor Env where
-    fmap f (Env xs) = Env (map (second f) xs)
 
 type Res v = Either ErrMsg v
 

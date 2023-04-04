@@ -1,12 +1,19 @@
-module Norm () where
+module Norm (
+    eval,
+    evalCls,
+    reify,
+    reify',
+) where
 
 import Env
 import Err (errMsgNorm)
-import Lang (Name (..), Term (..))
-import TyCheck (
+import Lang (
     Closure (..),
+    Env (..),
+    Name (..),
     Neutral (..),
     Normal (..),
+    Term (..),
     Ty,
     TyCtx,
     TyCtxEntry (..),

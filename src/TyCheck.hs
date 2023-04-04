@@ -1,93 +1,21 @@
 module TyCheck (
-    Ty,
-    Closure (..),
-    Neutral (..),
-    Val (..),
-    Normal (..),
-    TyCtxEntry (..),
-    TyCtx,
-) where
+    ) where
 
 import Env
-import Lang (Name, Term (..))
+import Err (errMsgTyCk)
+import Lang (
+    Closure,
+    Env (..),
+    Name,
+    Neutral (..),
+    Term (..),
+    Ty,
+    TyCtx,
+    TyCtxEntry (..),
+    Val (..),
+ )
+import Norm (eval, evalCls, reify')
 import Prelude hiding (lookup)
-
--- Types are nothing special but values
-type Ty = Val
-
-data Closure = Closure
-    { cEnv :: Env Val
-    , cName :: Name
-    , cBody :: Term
-    }
-    deriving (Show, Eq)
-
--- Neutral terms are terms in elimination form, but cannot be reduced.
--- E.g., an application whose first element is a variable.
-data Neutral
-    = NVar Name
-    | NApp Neutral Normal
-    | NFst Neutral
-    | NSnd Neutral
-    | NIndNat Normal Normal Normal Neutral
-    | NSubst Normal Normal Neutral
-    | NIndAbsurd Normal Neutral
-    deriving (Show, Eq)
-
--- The definition of Value should correspond to each ctor defined in Term
--- (Notice not all elements of Term are ctor, e.g., Fst and Snd are eliminator)
---
--- The special ctors in the value definition in a DT language are VPi and VSigma
--- Both of them are constructing types whose second element dependent the first.
--- In other words, the second element is a function (at type-level, conceptually).
--- Therefore, we represent them as VPi Ty Closure (VSigma has the same def),
--- where Ty represents the first element (a non-dependent type).
---
--- Since in DT-language, types and terms are the same thing, the Ty is simply a type synonym for readability
-data Val
-    = VPi Ty Closure
-    | VLam Closure
-    | VSigma Ty Closure
-    | VMkPair Val Val
-    | VNat
-    | VZero
-    | VSucc Val
-    | VEqual Ty Val Val
-    | VRefl
-    | VUnitTy
-    | VUnit
-    | VAbsurd
-    | VAtom
-    | VQuote String
-    | VUniverse
-    | VNeutral Ty Neutral
-    deriving (Show, Eq)
-
--- Normal form
--- This is the resulting form we want for normalization.
--- Also the form which we will readback to recover a Term.
---
--- Notice that we do not need to include neutral terms here,
--- because neutral terms are also values (VNeutral)
-data Normal = Normal Ty Val
-    deriving (Show, Eq)
-
--- Typing context for dependent type checking
--- In DT system, typing context consists of two kinds of entries
--- 1. Variable declarations (abstractions?),
--- i.e., mappings from variable names to their types, introduced by Lam, Pi, and Sigma.
--- 2. Definitions, i.e., mappings from variable names to their definitions (values)
---
--- The reason for having the definition ctx is that we can have expressions in the types now.
--- Those expressions might refer to existing definitions (e.g., calling a type-level function.)
--- We could in theory having two contexts and manage them separately,
--- but that would complicate things like shadowing and computing used names.
-data TyCtxEntry
-    = Decl Ty
-    | Def Ty Val
-    deriving (Show)
-
-type TyCtx = Env TyCtxEntry
 
 type Depth = Int
 
@@ -159,11 +87,92 @@ alphaEquiv' d ns1 (Sigma n1 t11 t12) ns2 (Sigma n2 t21 t22) =
 alphaEquiv' _ _ _ _ _ = False
 
 alphaEquiv :: Term -> Term -> Bool
-alphaEquiv t1 t2 = alphaEquiv' 0 emptyEnv t1 emptyEnv t2
+alphaEquiv t1 = alphaEquiv' 0 emptyEnv t1 emptyEnv
 
--- note that type is also a term, therefore the return type is Term
+lookupTy :: TyCtx -> Name -> Res Ty
+lookupTy ctx n = do
+    entry <- lookup ctx n
+    case entry of
+        Decl ty -> return ty
+        Def ty _ -> return ty
+
+-- Convert a typing context into an Env of Val.
+-- Used when calling `eval` in `infer`
+toEnv :: TyCtx -> Env Val
+toEnv (Env []) = Env []
+toEnv (Env ((n, e) : xs)) = extend rest n v
+  where
+    rest = toEnv (Env xs)
+    v = case e of
+        Decl ty -> VNeutral ty (NVar n)
+        Def _ val -> val
+
+-- isXXXs below are a set of helper functions used in type checking
+-- The functions in the tutorial requires TyCtx mostly for debugging.
+-- We will keep the functions simple for the moment.
+isPi :: Ty -> Res (Ty, Closure)
+isPi (VPi tyA cls) = Right (tyA, cls)
+isPi ty = Left $ errMsgTyCk "Expect a Pi type, but got" ty
+
+isNat :: Ty -> Res ()
+isNat VNat = Right ()
+isNat ty = Left $ errMsgTyCk "Expect a Nat type, but got" ty
+
 infer :: TyCtx -> Term -> Res Ty
-infer = undefined
+infer ctx (Var n) = lookupTy ctx n
+infer ctx (Pi n tyA tyB) = do
+    check ctx tyA VUniverse
+    tyA' <- eval (toEnv ctx) tyA
+    check (extend ctx n (Decl tyA')) tyB VUniverse
+    Right VUniverse
+infer ctx (App f a) = do
+    fTy <- infer ctx f
+    (tyA, cls) <- isPi fTy
+    check ctx a tyA
+    aVal <- eval (toEnv ctx) a
+    tyB <- evalCls cls aVal
+    Right tyB
+infer ctx (Sigma na te te') = _wH
+infer ctx (MkPair te te') = _wI
+infer ctx (Fst te) = _wJ
+infer ctx (Snd te) = _wK
+infer _ Nat = Right VUniverse
+infer _ Zero = Right VNat
+infer ctx (Succ n) = do
+    ty <- infer ctx n
+    isNat ty
+    Right VNat
+infer ctx (IndNat te te' te2 te3) = _wO
+infer ctx (Equal te te' te2) = _wP
+infer ctx (Subst te te' te2) = _wR
+infer _ UnitTy = Right VUniverse
+infer _ Unit = Right VUnitTy
+infer _ Absurd = Right VUniverse
+infer ctx (IndAbsurd te te') = _wV
+infer _ Atom = Right VUniverse
+infer _ (Quote s) = Right VAtom
+infer _ Universe = Right VUniverse
+infer ctx (As te te') = _wZ
+infer _ t = Left $ errMsgTyCk "No inference rule for" t
 
 check :: TyCtx -> Term -> Ty -> Res ()
-check = undefined
+check ctx (Lam na te) ty = _w12
+check ctx (App te te') ty = _w13
+check ctx (Sigma na te te') ty = _w14
+check ctx (MkPair te te') ty = _w15
+check ctx (Fst te) ty = _w16
+check ctx (Snd te) ty = _w17
+check ctx (IndNat te te' te2 te3) ty = _w1b
+check ctx (Equal te te' te2) ty = _w1c
+check ctx Refl ty = _w1d
+check ctx (Subst te te' te2) ty = _w1e
+check ctx (IndAbsurd te te') ty = _w1i
+check ctx (As te te') ty = _w1m
+-- subsumption
+check ctx t ty1 = do
+    ty2 <- infer ctx t
+    ty1' <- reify' ctx VUniverse ty1
+    ty2' <- reify' ctx VUniverse ty2
+    if alphaEquiv ty1' ty2'
+        then Right ()
+        else Left $ errMsgTyCk "cannot show equivalence between inferred and checked type on term" (t, ty1, ty2)

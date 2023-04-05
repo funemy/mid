@@ -232,15 +232,35 @@ infer ctx (As t ty) = do
     Right ty'
 infer _ t = Left $ errMsgTyCk "No inference rule for" t
 
+-- Helper function
+-- checking two values are alpha-equivalent under the given type
+equiv :: TyCtx -> Ty -> Val -> Val -> Res Bool
+equiv ctx ty x y = do
+    x' <- reify' ctx ty x
+    y' <- reify' ctx ty y
+    Right $ alphaEquiv x' y'
+
 check :: TyCtx -> Term -> Ty -> Res ()
-check ctx (Lam na te) ty = _w12
-check ctx (MkPair l r) ty = _w15
-check ctx Refl ty = _w1d
+check ctx (Lam name body) ty = do
+    (tyA, cls) <- isPi ty
+    tyB <- evalCls cls (VNeutral tyA (NVar name))
+    check (extend ctx name (Decl tyA)) body tyB
+check ctx (MkPair l r) ty = do
+    (tyA, cls) <- isSigma ty
+    check ctx l tyA
+    lV <- eval (toEnv ctx) l
+    tyB <- evalCls cls lV
+    check ctx r tyB
+check ctx Refl eq = do
+    (ty, x, y) <- isEq eq
+    equal <- equiv ctx ty x y
+    if equal
+        then Right ()
+        else Left $ errMsgTyCk "cannot prove equality by refl because x and y are not alpha-equivalent" (ty, x, y)
 -- subsumption
 check ctx t ty1 = do
     ty2 <- infer ctx t
-    ty1' <- reify' ctx VUniverse ty1
-    ty2' <- reify' ctx VUniverse ty2
-    if alphaEquiv ty1' ty2'
+    equal <- equiv ctx VUniverse ty1 ty2
+    if equal
         then Right ()
         else Left $ errMsgTyCk "cannot show equivalence between inferred and checked type on term" (t, ty1, ty2)

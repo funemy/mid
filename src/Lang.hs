@@ -90,13 +90,17 @@ annotated _ = False
 
 instance Show Term where
     show (Var s) = show s
+    show (Pi n ty@(Sigma{}) ty') = printf "Π%s:(%s).%s" (show n) (show ty) (show ty')
+    show (Pi n ty@(Pi{}) ty') = printf "Π%s:(%s).%s" (show n) (show ty) (show ty')
     show (Pi n ty ty') = printf "Π%s:%s.%s" (show n) (show ty) (show ty')
     show (Lam n b) = printf "λ%s.%s" (show n) (show b)
     show (App f a) = printf "%s %s" (show f) (show a)
+    show (Sigma n ty@(Pi{}) ty') = printf "Σ%s:(%s).%s" (show n) (show ty) (show ty')
+    show (Sigma n ty@(Sigma{}) ty') = printf "Σ%s:(%s).%s" (show n) (show ty) (show ty')
     show (Sigma n ty ty') = printf "Σ%s:%s.%s" (show n) (show ty) (show ty')
     show (MkPair l r) = printf "(%s, %s)" (show l) (show r)
-    show (Fst p) = printf "%s.1" (show p)
-    show (Snd p) = printf "%s.2" (show p)
+    show (Fst p) = printf "fst %s" (show p)
+    show (Snd p) = printf "snd %s" (show p)
     show Nat = "Nat"
     show Zero = "0"
     show (Succ v@(Var _)) = "succ " ++ show v

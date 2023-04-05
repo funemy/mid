@@ -52,6 +52,18 @@ ex6 = lambda x refl `as` forall x Nat ((plus zero x === x) Nat)
 test6 :: IO ()
 test6 = runTest ex6
 
+ex7 :: Term
+ex7 = lambda x x `as` ((Nat ~> Nat) ~> (Nat ~> Nat))
+
+test7 :: IO ()
+test7 = runTest ex7
+
+ex8 :: Term
+ex8 = lambda x x `as` (exists y Nat Nat ~> exists y Nat Nat)
+
+test8 :: IO ()
+test8 = runTest ex8
+
 ---------------------------
 -- Helper Functions Below
 ---------------------------

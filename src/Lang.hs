@@ -9,6 +9,7 @@ module Lang (
     TyCtx,
     TyCtxEntry (..),
     Val (..),
+    annotated,
 ) where
 
 import Data.Bifunctor (Bifunctor (second))
@@ -82,6 +83,10 @@ toInt :: Term -> Int
 toInt Zero = 0
 toInt (Succ x) = 1 + toInt x
 toInt _ = error "Cannot print ill-formed natural numbers."
+
+annotated :: Term -> Bool
+annotated (As _ _) = True
+annotated _ = False
 
 instance Show Term where
     show (Var s) = show s
@@ -168,7 +173,7 @@ type Ty = Val
 data Normal = Normal Ty Val
     deriving (Show, Eq)
 
--- Typing context for dependent type checking
+-- | Typing context for dependent type checking
 -- In DT system, typing context consists of two kinds of entries
 -- 1. Variable declarations (abstractions?),
 -- i.e., mappings from variable names to their types, introduced by Lam, Pi, and Sigma.
@@ -183,6 +188,7 @@ data TyCtxEntry
     | Def Ty Val
     deriving (Show)
 
+-- FIXME: Consider change this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
 type TyCtx = Env TyCtxEntry
 
 -- A generic definition of environment

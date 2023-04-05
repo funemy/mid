@@ -257,7 +257,7 @@ reify' ctx ty (VNeutral ty' neu) =
 reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 
 reifyNeu :: TyCtx -> Neutral -> Res Term
-reifyNeu ctx (NVar n) = Right $ Var n
+reifyNeu _ (NVar n) = Right $ Var n
 reifyNeu ctx (NApp f a) = do
     f' <- reifyNeu ctx f
     a' <- reify ctx a

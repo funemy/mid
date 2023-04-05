@@ -1,4 +1,10 @@
-module Err (ErrMsg (..), errMsg, errMsgNorm, errMsgTyCk) where
+module Err (
+    ErrMsg (..),
+    errMsg,
+    errMsgNorm,
+    errMsgTyCk,
+    errMsgTop,
+) where
 
 newtype ErrMsg = ErrMsg String
     deriving (Show, Eq)
@@ -11,3 +17,6 @@ errMsgNorm = errMsg "[Norm]"
 
 errMsgTyCk :: Show t => String -> t -> ErrMsg
 errMsgTyCk = errMsg "[TyCk]"
+
+errMsgTop :: Show t => String -> t -> ErrMsg
+errMsgTop = errMsg "[Toplevel]"

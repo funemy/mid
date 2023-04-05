@@ -28,8 +28,8 @@ library
       Env
       Err
       Lang
-      Lib
       Norm
+      Toplevel
       TyCheck
   other-modules:
       Paths_mid

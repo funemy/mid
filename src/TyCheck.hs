@@ -1,5 +1,7 @@
 module TyCheck (
-    ) where
+    infer,
+    toEnv,
+) where
 
 import Env
 import Err (errMsgTyCk)

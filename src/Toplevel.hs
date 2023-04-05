@@ -32,7 +32,10 @@ data Toplevel
 data Output
     = Output Term
     | Void
-    deriving (Show)
+
+instance Show Output where
+    show (Output t) = "Output: " ++ show t
+    show Void = "<void>"
 
 valid :: Toplevel -> Bool
 valid (Definition _ t) = annotated t

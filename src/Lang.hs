@@ -102,13 +102,13 @@ instance Show Term where
     show (Succ v@(Var _)) = "succ " ++ show v
     show n@(Succ _) = show $ toInt n
     show (IndNat ty t1 t2 t3) = printf "(ind-nat (%s) %s (%s) %s)" (show ty) (show t1) (show t2) (show t3)
-    show (Equal ty t1 t2) = printf "%s:%s≡%s" (show t1) (show t2) (show ty)
+    show (Equal ty t1 t2) = printf "%s≡%s : %s" (show t1) (show t2) (show ty)
     show Refl = "refl"
     show (Subst t1 t2 t3) = printf "(subst %s %s %s)" (show t1) (show t2) (show t3)
     show UnitTy = "Unit"
     show Unit = "()"
     show Absurd = "⊥"
-    show (IndAbsurd e ty) = printf "(ind-absurd %s %s)" (show e) (show ty)
+    show (IndAbsurd e ty) = printf "(ind-absurd (%s) (%s))" (show e) (show ty)
     show Atom = "Atom"
     show (Quote s) = printf "'%s" s
     show Universe = "U"

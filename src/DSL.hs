@@ -39,7 +39,7 @@ pi :: String -> Term -> Term -> Term
 pi s = Pi (Name s)
 
 (~>) :: Term -> Term -> Term
-ty1 ~> ty2 = pi "_k" ty1 ty2
+ty1 ~> ty2 = pi "k" ty1 ty2
 infix 9 ~>
 
 lambda :: String -> Term -> Term

@@ -99,9 +99,10 @@ instance Show Term where
     show (Snd p) = printf "%s.2" (show p)
     show Nat = "Nat"
     show Zero = "0"
+    show (Succ v@(Var _)) = "succ " ++ show v
     show n@(Succ _) = show $ toInt n
-    show (IndNat ty t1 t2 t3) = printf "(ind-nat %s %s %s %s)" (show ty) (show t1) (show t2) (show t3)
-    show (Equal ty t1 t2) = printf "%s:%s≡%s" (show t1) (show ty) (show t2)
+    show (IndNat ty t1 t2 t3) = printf "(ind-nat (%s) %s (%s) %s)" (show ty) (show t1) (show t2) (show t3)
+    show (Equal ty t1 t2) = printf "%s:%s≡%s" (show t1) (show t2) (show ty)
     show Refl = "refl"
     show (Subst t1 t2 t3) = printf "(subst %s %s %s)" (show t1) (show t2) (show t3)
     show UnitTy = "Unit"
@@ -111,7 +112,7 @@ instance Show Term where
     show Atom = "Atom"
     show (Quote s) = printf "'%s" s
     show Universe = "U"
-    show (As e ty) = printf "(as %s %s)" (show e) (show ty)
+    show (As e ty) = printf "%s : %s" (show e) (show ty)
 
 data Closure = Closure
     { cEnv :: Env Val

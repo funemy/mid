@@ -3,12 +3,16 @@
 module DSL (
     var,
     pi,
+    (~>),
     lambda,
     app,
     sigma,
+    (*),
     pair,
     fst,
     snd,
+    zero,
+    suc,
     nat,
     (===),
     refl,
@@ -21,10 +25,11 @@ module DSL (
     set,
     as,
     induction,
+    Term (..),
 ) where
 
 import Lang (Name (..), Term (..))
-import Prelude hiding (fst, pi, snd, (==))
+import Prelude hiding (fst, pi, snd, (*), (==))
 
 -- | A set of boring helper function for constructing AST
 var :: String -> Term
@@ -32,6 +37,10 @@ var s = Var (Name s)
 
 pi :: String -> Term -> Term -> Term
 pi s = Pi (Name s)
+
+(~>) :: Term -> Term -> Term
+ty1 ~> ty2 = pi "_k" ty1 ty2
+infix 9 ~>
 
 lambda :: String -> Term -> Term
 lambda s = Lam (Name s)
@@ -42,6 +51,10 @@ app = App
 sigma :: String -> Term -> Term -> Term
 sigma s = Sigma (Name s)
 
+(*) :: Term -> Term -> Term
+ty1 * ty2 = sigma "_p" ty1 ty2
+infix 9 *
+
 pair :: Term -> Term -> Term
 pair = MkPair
 
@@ -50,6 +63,12 @@ fst = Fst
 
 snd :: Term -> Term
 snd = Snd
+
+zero :: Term
+zero = Zero
+
+suc :: Term -> Term
+suc = Succ
 
 nat :: Int -> Term
 nat 0 = Zero

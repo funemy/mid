@@ -2,11 +2,11 @@
 
 module DSL (
     var,
-    pi,
+    forall,
     (~>),
     lambda,
     app,
-    sigma,
+    exists,
     (*),
     pair,
     fst,
@@ -35,24 +35,27 @@ import Prelude hiding (fst, pi, snd, (*), (==))
 var :: String -> Term
 var s = Var (Name s)
 
-pi :: String -> Term -> Term -> Term
-pi s = Pi (Name s)
+forall :: Term -> Term -> Term -> Term
+forall (Var n) = Pi n
+forall t = error ("The first argument of `forall` must be a variable, but got: " ++ show t)
 
 (~>) :: Term -> Term -> Term
-ty1 ~> ty2 = pi "k" ty1 ty2
+ty1 ~> ty2 = Pi (Name "k") ty1 ty2
 infix 9 ~>
 
-lambda :: String -> Term -> Term
-lambda s = Lam (Name s)
+lambda :: Term -> Term -> Term
+lambda (Var n) = Lam n
+lambda t = error ("The first argument of `Lambda` must be a variable, but got: " ++ show t)
 
 app :: Term -> Term -> Term
 app = App
 
-sigma :: String -> Term -> Term -> Term
-sigma s = Sigma (Name s)
+exists :: Term -> Term -> Term -> Term
+exists (Var s) = Sigma s
+exists t = error ("The first argument of `exists` must be a variable, but got: " ++ show t)
 
 (*) :: Term -> Term -> Term
-ty1 * ty2 = sigma "_p" ty1 ty2
+ty1 * ty2 = Sigma (Name "p") ty1 ty2
 infix 9 *
 
 pair :: Term -> Term -> Term

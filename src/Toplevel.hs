@@ -1,10 +1,20 @@
 module Toplevel (
+    Output (..),
     toplevel,
+    run,
+    runWithDefs,
 ) where
 
-import Env (Res, extend)
+import Env (Res, emptyEnv, extend)
 import Err (errMsgTop)
-import Lang (Name, Term (..), TyCtx, TyCtxEntry (Def), Val (VUniverse), annotated)
+import Lang (
+    Name,
+    Term (..),
+    TyCtx,
+    TyCtxEntry (Def),
+    Val (VUniverse),
+    annotated,
+ )
 import Norm (eval, reify')
 import TyCheck (infer, toEnv)
 
@@ -22,6 +32,7 @@ data Toplevel
 data Output
     = Output Term
     | Void
+    deriving (Show)
 
 valid :: Toplevel -> Bool
 valid (Definition _ t) = annotated t
@@ -42,3 +53,22 @@ toplevel ctx top
             v' <- reify' ctx ty v
             Right (ctx, Output (As v' ty'))
     | otherwise = Left $ errMsgTop "toplevel definition must have type annotation" top
+
+run :: Term -> Res Output
+run t = do
+    (_, out) <- toplevel emptyEnv (Program t)
+    return out
+
+runWithDefs :: [(Name, Term)] -> [Term] -> Res [Output]
+runWithDefs ds ps = do
+    let defs = map (uncurry Definition) ds
+        programs = map Program ps
+        tops = defs ++ programs
+    (_, outs) <- go emptyEnv [] tops
+    return outs
+  where
+    go :: TyCtx -> [Output] -> [Toplevel] -> Res (TyCtx, [Output])
+    go ctx outs [] = return (ctx, outs)
+    go ctx outs (x : xs) = do
+        (ctx', out) <- toplevel ctx x
+        go ctx' (out : outs) xs

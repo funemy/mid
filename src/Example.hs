@@ -83,6 +83,52 @@ sym =
 pfSym :: IO ()
 pfSym = runTest sym
 
+trans :: Term
+trans =
+    let t =
+            lambda x $
+                lambda y $
+                    lambda z $
+                        lambda eqxy $
+                            lambda eqyz $
+                                subst (lambda k ((x === k) Nat)) eqxy eqyz
+        ty =
+            forall x Nat $
+                forall y Nat $
+                    forall z Nat $
+                        (x === y) Nat ~> (y === z) Nat ~> (x === z) Nat
+     in t `as` ty
+
+pfTrans :: IO ()
+pfTrans = runTest trans
+
+cong :: Term
+cong =
+    let t =
+            lambda x $
+                lambda y $
+                    lambda z $
+                        lambda f $
+                            lambda
+                                eqxy
+                                ( subst
+                                    (lambda k ((app f x === app f k) Nat))
+                                    refl
+                                    eqxy
+                                )
+        ty =
+            forall x Nat $
+                forall y Nat $
+                    forall z Nat $
+                        forall
+                            f
+                            (Nat ~> Nat)
+                            ((x === y) Nat ~> (app f x === app f y) Nat)
+     in t `as` ty
+
+pfCong :: IO ()
+pfCong = runTest cong
+
 ---------------------------
 -- Helper Functions Below
 ---------------------------
@@ -93,7 +139,7 @@ pp = pPrint
 runTest :: Term -> IO ()
 runTest = pp . run
 
-x, y, z, p, q, k, f, eq :: Term
+x, y, z, p, q, k, f, eq, eqxy, eqyz, eqxz :: Term
 x = Var (Name "x")
 y = Var (Name "y")
 z = Var (Name "z")
@@ -102,3 +148,6 @@ q = Var (Name "q")
 k = Var (Name "k")
 f = Var (Name "f")
 eq = Var (Name "eq")
+eqxy = Var (Name "eqxy")
+eqyz = Var (Name "eqyz")
+eqxz = Var (Name "eqxz")

@@ -39,9 +39,11 @@ forall :: Term -> Term -> Term -> Term
 forall (Var n) = Pi n
 forall t = error ("The first argument of `forall` must be a variable, but got: " ++ show t)
 
+-- Name "_" is purely for pretty-printing
+-- "_" is NOT treated differently
 (~>) :: Term -> Term -> Term
-ty1 ~> ty2 = Pi (Name "k") ty1 ty2
-infix 9 ~>
+ty1 ~> ty2 = Pi (Name "_") ty1 ty2
+infixr 9 ~>
 
 lambda :: Term -> Term -> Term
 lambda (Var n) = Lam n

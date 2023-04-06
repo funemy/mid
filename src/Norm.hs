@@ -37,7 +37,7 @@ import Prelude hiding (lookup)
 -- E.g., Nat -> Nat, Nat -> U
 -- No sanity check is performed, use carefully.
 vArrow :: Val -> Term -> Val
-vArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "_dummy") ty2)
+vArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
 
 -- Helper function for evaluating closures
 evalCls :: Closure -> Val -> Res Val
@@ -111,12 +111,13 @@ indStepTy pVal =
 doSubst :: Val -> Val -> Val -> Res Val
 doSubst prop pfA = \case
     VRefl -> Right pfA
-    VNeutral (VEqual _ a _) eq -> do
+    VNeutral (VEqual ty a _) eq -> do
         -- The proposition (p x) (notice the type of p is A -> U)
-        ty' <- doApp prop a
-        let propNorm = Normal VUniverse prop
-        let pfANorm = Normal ty' pfA
-        Right $ VNeutral ty' (NSubst propNorm pfANorm eq)
+        propATy <- doApp prop a
+        let propTy = vArrow ty Universe
+            propNorm = Normal propTy prop
+            pfANorm = Normal propATy pfA
+        Right $ VNeutral propATy (NSubst propNorm pfANorm eq)
     t -> Left $ errMsgNorm "substituing on non-equality proof" t
 
 doIndAbsurd :: Val -> Val -> Res Val
@@ -250,9 +251,11 @@ reify' ctx VAbsurd (VNeutral VAbsurd neu) = do
     neu' <- reifyNeu ctx neu
     Right (As neu' Absurd)
 reify' ctx ty (VNeutral ty' neu) =
-    if ty == ty'
-        then reifyNeu ctx neu
-        else Left $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty)
+    reifyNeu ctx neu
+-- FIXME: I don't understand, why this ty == ty' must not exist?
+-- if ty == ty'
+--     then reifyNeu ctx neu
+--     else Left $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty')
 -- invalid patterns
 reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 

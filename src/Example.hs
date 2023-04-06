@@ -64,6 +64,25 @@ ex8 = lambda x x `as` (exists y Nat Nat ~> exists y Nat Nat)
 test8 :: IO ()
 test8 = runTest ex8
 
+-- | Symmetry of equality
+-- x and y are some nats
+-- eq is the equality proof of x === y
+-- we want to proof symmetry y === x
+-- proof sketch:
+-- - create such a property, say p = forall z:Nat. (z == x : Nat)
+-- - then apparently (p x) holds
+-- - then because we already assume x === y
+-- - by substituion, we also have (p y) holds, i.e.,  (y==x : Nat)
+sym :: Term
+sym =
+    let prop = lambda k ((k === x) Nat)
+        t = lambda x (lambda y (lambda eq (subst prop refl eq)))
+        ty = forall x Nat (forall y Nat ((x === y) Nat ~> (y === x) Nat))
+     in t `as` ty
+
+pfSym :: IO ()
+pfSym = runTest sym
+
 ---------------------------
 -- Helper Functions Below
 ---------------------------
@@ -74,7 +93,7 @@ pp = pPrint
 runTest :: Term -> IO ()
 runTest = pp . run
 
-x, y, z, p, q, k, f :: Term
+x, y, z, p, q, k, f, eq :: Term
 x = Var (Name "x")
 y = Var (Name "y")
 z = Var (Name "z")
@@ -82,3 +101,4 @@ p = Var (Name "p")
 q = Var (Name "q")
 k = Var (Name "k")
 f = Var (Name "f")
+eq = Var (Name "eq")

@@ -30,27 +30,27 @@ data Term
     | Lam Name Term
     | App Term Term
     | Sigma Name Term Term
-    | -- Pair constructor
+    | -- | Pair constructor
       MkPair Term Term
     | Fst Term
     | Snd Term
     | Nat
     | Zero
     | Succ Term
-    | -- indNat has the same signature as ATAPL
+    | -- | indNat has the same signature as ATAPL
       -- 1st term: the Property (Nat -> U)
       -- 2nd term: the base case (p 0)
       -- 3rd term: the inductive case
       -- 4th term: the number
       IndNat Term Term Term Term
-    | -- Equality type
+    | -- | Equality type
       -- The 1st argument is the type of the 2nd and 3rd
       -- TODO: we should be able to infer the 1st argument
       Equal Term Term Term
     | -- Ctor for Equality types (i.e., refl)
       -- I'm curious about this, isn't `refl` in Agda takes implicit arguments?
       Refl
-    | -- Substitution on equal terms
+    | -- | Substitution on equal terms
       -- Given a property p of some type A, a proof that p holds on an element x : A,
       -- and a proof of x = y (y, of course, should also be of type A),
       -- returns a proof that p also holds on y
@@ -61,18 +61,18 @@ data Term
     | UnitTy
     | Unit
     | Absurd
-    | -- Induction principle for Absurd
+    | -- | Induction principle for Absurd
       -- Given a proposition we want to prove, and a proof of absurdity,
       -- returns a proof of the target proposition
       -- 1st term: the proposition p we want to prove, p : U
       -- 2nd term: a proof of absurdity
       IndAbsurd Term Term
-    | -- Atom type as in "The Litte Typer"
+    | -- | Atom type as in "The Litte Typer"
       Atom
-    | -- Ctor for Atom values
+    | -- | Ctor for Atom values
       Quote String
     | Universe
-    | -- Type annotation (ascription)
+    | -- | Type annotation (ascription)
       -- 1st term: term,
       -- 2nd term: type
       As Term Term
@@ -92,6 +92,7 @@ instance Show Term where
     show (Var s) = show s
     show (Pi n ty@(Sigma{}) ty') = printf "Π%s:(%s).%s" (show n) (show ty) (show ty')
     show (Pi n ty@(Pi{}) ty') = printf "Π%s:(%s).%s" (show n) (show ty) (show ty')
+    show (Pi n ty@(Equal{}) ty') = printf "Π%s:(%s).%s" (show n) (show ty) (show ty')
     show (Pi n ty ty') = printf "Π%s:%s.%s" (show n) (show ty) (show ty')
     show (Lam n b) = printf "λ%s.%s" (show n) (show b)
     show (App f a) = printf "%s %s" (show f) (show a)
@@ -106,7 +107,7 @@ instance Show Term where
     show (Succ v@(Var _)) = "succ " ++ show v
     show n@(Succ _) = show $ toInt n
     show (IndNat ty t1 t2 t3) = printf "(ind-nat (%s) %s (%s) %s)" (show ty) (show t1) (show t2) (show t3)
-    show (Equal ty t1 t2) = printf "%s≡%s : %s" (show t1) (show t2) (show ty)
+    show (Equal ty t1 t2) = printf "%s≡%s:%s" (show t1) (show t2) (show ty)
     show Refl = "refl"
     show (Subst t1 t2 t3) = printf "(subst %s %s %s)" (show t1) (show t2) (show t3)
     show UnitTy = "Unit"

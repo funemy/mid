@@ -73,18 +73,18 @@ test8 = runTest ex8
 -- - then apparently (p x) holds
 -- - then because we already assume x === y
 -- - by substituion, we also have (p y) holds, i.e.,  (y==x : A)
-sym :: Term
-sym = t `as` ty
+symPf :: Term
+symPf = t `as` ty
   where
     prop = lambda k ((k === x) tyA)
     t = lambda tyA (lambda x (lambda y (lambda eq (subst prop refl eq))))
     ty = forall tyA Universe (forall x tyA (forall y tyA ((x === y) tyA ~> (y === x) tyA)))
 
-pfSym :: IO ()
-pfSym = runTest sym
+runSymPf :: IO ()
+runSymPf = runTest symPf
 
-trans :: Term
-trans = t `as` ty
+transPf :: Term
+transPf = t `as` ty
   where
     t =
         lambda tyA $
@@ -101,11 +101,11 @@ trans = t `as` ty
                     forall z tyA $
                         (x === y) tyA ~> (y === z) tyA ~> (x === z) tyA
 
-pfTrans :: IO ()
-pfTrans = runTest trans
+runTransPf :: IO ()
+runTransPf = runTest trans
 
-cong :: Term
-cong = t `as` ty
+congPf :: Term
+congPf = t `as` ty
   where
     t =
         lambda tyA $
@@ -130,8 +130,8 @@ cong = t `as` ty
                             (tyA ~> tyA)
                             ((x === y) tyA ~> (app f x === app f y) tyA)
 
-pfCong :: IO ()
-pfCong = runTest cong
+runCongPf :: IO ()
+runCongPf = runTest cong
 
 ----------------------------------------------
 -- Helper Functions for Constructing Examples

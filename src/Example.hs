@@ -74,61 +74,61 @@ test8 = runTest ex8
 -- - then because we already assume x === y
 -- - by substituion, we also have (p y) holds, i.e.,  (y==x : A)
 sym :: Term
-sym =
-    let prop = lambda k ((k === x) tyA)
-        t = lambda tyA (lambda x (lambda y (lambda eq (subst prop refl eq))))
-        ty = forall tyA Universe (forall x tyA (forall y tyA ((x === y) tyA ~> (y === x) tyA)))
-     in t `as` ty
+sym = t `as` ty
+  where
+    prop = lambda k ((k === x) tyA)
+    t = lambda tyA (lambda x (lambda y (lambda eq (subst prop refl eq))))
+    ty = forall tyA Universe (forall x tyA (forall y tyA ((x === y) tyA ~> (y === x) tyA)))
 
 pfSym :: IO ()
 pfSym = runTest sym
 
 trans :: Term
-trans =
-    let t =
-            lambda tyA $
-                lambda x $
-                    lambda y $
-                        lambda z $
-                            lambda eqxy $
-                                lambda eqyz $
-                                    subst (lambda k ((x === k) tyA)) eqxy eqyz
-        ty =
-            forall tyA Universe $
-                forall x tyA $
-                    forall y tyA $
-                        forall z tyA $
-                            (x === y) tyA ~> (y === z) tyA ~> (x === z) tyA
-     in t `as` ty
+trans = t `as` ty
+  where
+    t =
+        lambda tyA $
+            lambda x $
+                lambda y $
+                    lambda z $
+                        lambda eqxy $
+                            lambda eqyz $
+                                subst (lambda k ((x === k) tyA)) eqxy eqyz
+    ty =
+        forall tyA Universe $
+            forall x tyA $
+                forall y tyA $
+                    forall z tyA $
+                        (x === y) tyA ~> (y === z) tyA ~> (x === z) tyA
 
 pfTrans :: IO ()
 pfTrans = runTest trans
 
 cong :: Term
-cong =
-    let t =
-            lambda tyA $
-                lambda x $
-                    lambda y $
-                        lambda z $
-                            lambda f $
-                                lambda
+cong = t `as` ty
+  where
+    t =
+        lambda tyA $
+            lambda x $
+                lambda y $
+                    lambda z $
+                        lambda f $
+                            lambda
+                                eqxy
+                                ( subst
+                                    (lambda k ((app f x === app f k) tyA))
+                                    refl
                                     eqxy
-                                    ( subst
-                                        (lambda k ((app f x === app f k) tyA))
-                                        refl
-                                        eqxy
-                                    )
-        ty =
-            forall tyA Universe $
-                forall x tyA $
-                    forall y tyA $
-                        forall z tyA $
-                            forall
-                                f
-                                (tyA ~> tyA)
-                                ((x === y) tyA ~> (app f x === app f y) tyA)
-     in t `as` ty
+                                )
+    ty =
+        forall tyA Universe $
+            forall x tyA $
+                forall y tyA $
+                    forall z tyA $
+                        forall
+                            f
+                            (tyA ~> tyA)
+                            ((x === y) tyA ~> (app f x === app f y) tyA)
 
 pfCong :: IO ()
 pfCong = runTest cong

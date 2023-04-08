@@ -65,19 +65,19 @@ test8 :: IO ()
 test8 = runTest ex8
 
 -- | Symmetry of equality
--- x and y are some nats
+-- x and y are of some type A
 -- eq is the equality proof of x === y
 -- we want to proof symmetry y === x
 -- proof sketch:
--- - create such a property, say p = forall z:Nat. (z == x : Nat)
+-- - create such a property, say p = forall k:A. (k == x : A)
 -- - then apparently (p x) holds
 -- - then because we already assume x === y
--- - by substituion, we also have (p y) holds, i.e.,  (y==x : Nat)
+-- - by substituion, we also have (p y) holds, i.e.,  (y==x : A)
 sym :: Term
 sym =
-    let prop = lambda k ((k === x) Nat)
-        t = lambda x (lambda y (lambda eq (subst prop refl eq)))
-        ty = forall x Nat (forall y Nat ((x === y) Nat ~> (y === x) Nat))
+    let prop = lambda k ((k === x) tyA)
+        t = lambda tyA (lambda x (lambda y (lambda eq (subst prop refl eq))))
+        ty = forall tyA Universe (forall x tyA (forall y tyA ((x === y) tyA ~> (y === x) tyA)))
      in t `as` ty
 
 pfSym :: IO ()
@@ -86,17 +86,19 @@ pfSym = runTest sym
 trans :: Term
 trans =
     let t =
-            lambda x $
-                lambda y $
-                    lambda z $
-                        lambda eqxy $
-                            lambda eqyz $
-                                subst (lambda k ((x === k) Nat)) eqxy eqyz
+            lambda tyA $
+                lambda x $
+                    lambda y $
+                        lambda z $
+                            lambda eqxy $
+                                lambda eqyz $
+                                    subst (lambda k ((x === k) tyA)) eqxy eqyz
         ty =
-            forall x Nat $
-                forall y Nat $
-                    forall z Nat $
-                        (x === y) Nat ~> (y === z) Nat ~> (x === z) Nat
+            forall tyA Universe $
+                forall x tyA $
+                    forall y tyA $
+                        forall z tyA $
+                            (x === y) tyA ~> (y === z) tyA ~> (x === z) tyA
      in t `as` ty
 
 pfTrans :: IO ()
@@ -105,33 +107,35 @@ pfTrans = runTest trans
 cong :: Term
 cong =
     let t =
-            lambda x $
-                lambda y $
-                    lambda z $
-                        lambda f $
-                            lambda
-                                eqxy
-                                ( subst
-                                    (lambda k ((app f x === app f k) Nat))
-                                    refl
+            lambda tyA $
+                lambda x $
+                    lambda y $
+                        lambda z $
+                            lambda f $
+                                lambda
                                     eqxy
-                                )
+                                    ( subst
+                                        (lambda k ((app f x === app f k) tyA))
+                                        refl
+                                        eqxy
+                                    )
         ty =
-            forall x Nat $
-                forall y Nat $
-                    forall z Nat $
-                        forall
-                            f
-                            (Nat ~> Nat)
-                            ((x === y) Nat ~> (app f x === app f y) Nat)
+            forall tyA Universe $
+                forall x tyA $
+                    forall y tyA $
+                        forall z tyA $
+                            forall
+                                f
+                                (tyA ~> tyA)
+                                ((x === y) tyA ~> (app f x === app f y) tyA)
      in t `as` ty
 
 pfCong :: IO ()
 pfCong = runTest cong
 
----------------------------
--- Helper Functions Below
----------------------------
+----------------------------------------------
+-- Helper Functions for Constructing Examples
+----------------------------------------------
 
 pp :: Show a => a -> IO ()
 pp = pPrint
@@ -139,7 +143,7 @@ pp = pPrint
 runTest :: Term -> IO ()
 runTest = pp . run
 
-x, y, z, p, q, k, f, eq, eqxy, eqyz, eqxz :: Term
+x, y, z, p, q, k, f, eq, eqxy, eqyz, eqxz, tyA, tyB :: Term
 x = Var (Name "x")
 y = Var (Name "y")
 z = Var (Name "z")
@@ -151,3 +155,5 @@ eq = Var (Name "eq")
 eqxy = Var (Name "eqxy")
 eqyz = Var (Name "eqyz")
 eqxz = Var (Name "eqxz")
+tyA = Var (Name "A")
+tyB = Var (Name "B")

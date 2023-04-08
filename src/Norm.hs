@@ -111,13 +111,14 @@ indStepTy pVal =
 doSubst :: Val -> Val -> Val -> Res Val
 doSubst prop pfA = \case
     VRefl -> Right pfA
-    VNeutral (VEqual ty a _) eq -> do
+    VNeutral (VEqual ty a b) eq -> do
         -- The proposition (p x) (notice the type of p is A -> U)
         propATy <- doApp prop a
+        propBTy <- doApp prop b
         let propTy = vArrow ty Universe
             propNorm = Normal propTy prop
             pfANorm = Normal propATy pfA
-        Right $ VNeutral propATy (NSubst propNorm pfANorm eq)
+        Right $ VNeutral propBTy (NSubst propNorm pfANorm eq)
     t -> Left $ errMsgNorm "substituing on non-equality proof" t
 
 doIndAbsurd :: Val -> Val -> Res Val
@@ -251,11 +252,9 @@ reify' ctx VAbsurd (VNeutral VAbsurd neu) = do
     neu' <- reifyNeu ctx neu
     Right (As neu' Absurd)
 reify' ctx ty (VNeutral ty' neu) =
-    reifyNeu ctx neu
--- FIXME: I don't understand, why this ty == ty' must not exist?
--- if ty == ty'
---     then reifyNeu ctx neu
---     else Left $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty')
+    if ty == ty'
+        then reifyNeu ctx neu
+        else Left $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty')
 -- invalid patterns
 reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 

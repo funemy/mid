@@ -119,6 +119,12 @@ instance Show Term where
     show Universe = "U"
     show (As e ty) = printf "%s : %s" (show e) (show ty)
 
+-- A generic definition of environment
+-- All utility functions on Env are deinfed in Env.hs
+-- Definition of Env is here to resolve cyclic dependencies
+newtype Env v = Env [(Name, v)]
+    deriving (Show, Eq)
+
 data Closure = Closure
     { cEnv :: Env Val
     , cName :: Name
@@ -196,12 +202,6 @@ data TyCtxEntry
 
 -- FIXME: Consider change this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
 type TyCtx = Env TyCtxEntry
-
--- A generic definition of environment
--- All utility functions on Env are deinfed in Env.hs
--- Definition of Env is here to resolve cyclic dependencies
-newtype Env v = Env [(Name, v)]
-    deriving (Show, Eq)
 
 instance Functor Env where
     fmap f (Env xs) = Env (map (second f) xs)

@@ -64,6 +64,14 @@ ex8 = lambda x x `as` (exists y Nat Nat ~> exists y Nat Nat)
 test8 :: IO ()
 test8 = runTest ex8
 
+ex9 :: Term
+ex9 = lambda x (lambda y (lambda eqxy (sym eqxyTy eqxy))) `as` forall x Nat (forall y Nat (forall eqxy eqxyTy ((y === x) Nat)))
+  where
+    eqxyTy = (x === y) Nat
+
+test9 :: IO ()
+test9 = runTest ex9
+
 -- | Symmetry of equality
 -- x and y are of some type A
 -- eq is the equality proof of x === y
@@ -102,36 +110,36 @@ transPf = t `as` ty
                         (x === y) tyA ~> (y === z) tyA ~> (x === z) tyA
 
 runTransPf :: IO ()
-runTransPf = runTest trans
+runTransPf = runTest transPf
 
 congPf :: Term
 congPf = t `as` ty
   where
     t =
         lambda tyA $
-            lambda x $
-                lambda y $
-                    lambda z $
+            lambda tyB $
+                lambda x $
+                    lambda y $
                         lambda f $
                             lambda
                                 eqxy
                                 ( subst
-                                    (lambda k ((app f x === app f k) tyA))
+                                    (lambda k ((app f x === app f k) tyB))
                                     refl
                                     eqxy
                                 )
     ty =
         forall tyA Universe $
-            forall x tyA $
-                forall y tyA $
-                    forall z tyA $
+            forall tyB Universe $
+                forall x tyA $
+                    forall y tyA $
                         forall
                             f
-                            (tyA ~> tyA)
-                            ((x === y) tyA ~> (app f x === app f y) tyA)
+                            (tyA ~> tyB)
+                            ((x === y) tyA ~> (app f x === app f y) tyB)
 
 runCongPf :: IO ()
-runCongPf = runTest cong
+runCongPf = runTest congPf
 
 ----------------------------------------------
 -- Helper Functions for Constructing Examples

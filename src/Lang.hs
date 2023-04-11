@@ -23,7 +23,6 @@ instance Show Name where
 
 -- TODO: add List and Vec
 -- TODO: add Either
--- FIXME: missing sym/cong/trans for equality
 data Term
     = Var Name
     | Pi Name Term Term
@@ -200,7 +199,7 @@ data TyCtxEntry
     | Def Ty Val
     deriving (Show)
 
--- FIXME: Consider change this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
+-- FIXME: Consider changing this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
 type TyCtx = Env TyCtxEntry
 
 instance Functor Env where

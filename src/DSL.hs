@@ -25,11 +25,14 @@ module DSL (
     set,
     as,
     induction,
+    sym,
+    trans,
+    cong,
     Term (..),
 ) where
 
 import Lang (Name (..), Term (..))
-import Prelude hiding (fst, pi, snd, (*), (==))
+import Prelude hiding (fst, pi, snd, (*))
 
 -- | A set of boring helper function for constructing AST
 var :: String -> Term
@@ -80,7 +83,7 @@ nat 0 = Zero
 nat n = Succ (nat (n - 1))
 
 (===) :: Term -> Term -> Term -> Term
-(x === y) ty = Equal ty x y
+(a === b) ty = Equal ty a b
 infixl 9 ===
 
 refl :: Term
@@ -109,6 +112,92 @@ set = Universe
 
 as :: Term -> Term -> Term
 as = As
+
+-- | Apply symmetry to an equality proof
+-- 1st param: an equality proposition (i.e., a equality type)
+-- 2nd param: the proof of the equality proposition
+-- return: a proof of the symmetric equality proposition
+sym :: Term -> Term -> Term
+sym (Equal eqTy ta tb) pf = app (app (app (app (t `as` ty) eqTy) ta) tb) pf
+  where
+    prop = lambda k ((k === x) tyA)
+    t = lambda tyA (lambda x (lambda y (lambda eq (subst prop refl eq))))
+    ty = forall tyA Universe (forall x tyA (forall y tyA ((x === y) tyA ~> (y === x) tyA)))
+sym t1 t2 = error ("Invalid input to sym: " ++ show t1 ++ ", " ++ show t2)
+
+-- | Apply transitivity to two equality proofs
+-- 1st param: an equality proposition (x===y) tyA
+-- 2nd param: a proof of 1st param
+-- 3rd param: an equality proposition (y===z) tyA
+-- 4th param: a proof of 3rd param
+-- return: a proof of x===z
+trans :: Term -> Term -> Term -> Term -> Term
+trans (Equal eqabTy ta tb) eqabPf (Equal eqbcTy _ tc) eqbcPf
+    | eqabTy == eqbcTy = app (app (app (app (app (app transProp eqabTy) ta) tb) tc) eqabPf) eqbcPf
+    | otherwise = error ("Cannot apply transitivity to two equalities of different types: " ++ show (eqabTy, eqbcTy))
+  where
+    transProp = t `as` ty
+    t =
+        lambda tyA $
+            lambda x $
+                lambda y $
+                    lambda z $
+                        lambda eqxy $
+                            lambda eqyz $
+                                subst (lambda k ((x === k) tyA)) eqxy eqyz
+    ty =
+        forall tyA Universe $
+            forall x tyA $
+                forall y tyA $
+                    forall z tyA $
+                        (x === y) tyA ~> (y === z) tyA ~> (x === z) tyA
+trans t1 t2 t3 t4 = error ("Invalid input to trans: " ++ show t1 ++ ", " ++ show t2 ++ ", " ++ show t3 ++ ", " ++ show t4)
+
+-- | Apply congruence to an equality proof
+-- 1st param: a function type A -> B
+-- 2nd param: a function that has the type A -> B
+-- 3rd param: a equality proposition x === y : A
+-- 4th param: a proof of the 3rd param
+-- return: a proof of f x === f y : B
+cong :: Term -> Term -> Term -> Term -> Term
+cong (Pi _ aTy bTy) fun (Equal _ ta tb) eqab = app (app (app (app (app (app congProp aTy) bTy) ta) tb) fun) eqab
+  where
+    congProp = t `as` ty
+    t =
+        lambda tyA $
+            lambda tyB $
+                lambda x $
+                    lambda y $
+                        lambda f $
+                            lambda
+                                eqxy
+                                ( subst
+                                    (lambda k ((app f x === app f k) tyB))
+                                    refl
+                                    eqxy
+                                )
+    ty =
+        forall tyA Universe $
+            forall tyB Universe $
+                forall x tyA $
+                    forall y tyA $
+                        forall
+                            f
+                            (tyA ~> tyB)
+                            ((x === y) tyA ~> (app f x === app f y) tyB)
+cong t1 t2 t3 t4 = error ("Invalid input to cong: " ++ show t1 ++ ", " ++ show t2 ++ ", " ++ show t3 ++ ", " ++ show t4)
+
+x, y, z, k, f, eq, eqxy, eqyz, tyA, tyB :: Term
+x = Var (Name "x")
+y = Var (Name "y")
+z = Var (Name "z")
+k = Var (Name "k")
+f = Var (Name "f")
+eq = Var (Name "eq")
+eqxy = Var (Name "eqxy")
+eqyz = Var (Name "eqyz")
+tyA = Var (Name "A")
+tyB = Var (Name "B")
 
 class Inductable t where
     _induction :: [Term] -> t

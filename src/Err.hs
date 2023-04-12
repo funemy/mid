@@ -1,13 +1,11 @@
 module Err (
-    ErrMsg (..),
     errMsg,
     errMsgNorm,
     errMsgTyCk,
     errMsgTop,
 ) where
 
-newtype ErrMsg = ErrMsg String
-    deriving (Show, Eq)
+import Lang (ErrMsg (..))
 
 errMsg :: Show t => String -> String -> t -> ErrMsg
 errMsg stage msg t = ErrMsg (stage ++ " " ++ msg ++ ": " ++ show t)

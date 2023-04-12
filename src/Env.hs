@@ -7,14 +7,11 @@ module Env (
     names,
 ) where
 
-import Err (ErrMsg (..))
-import Lang (Env (..), Name (..))
+import Lang (Env (..), ErrMsg (..), Name (..), Res)
 import Prelude hiding (lookup)
 
 emptyEnv :: Env v
 emptyEnv = Env []
-
-type Res v = Either ErrMsg v
 
 failure :: String -> Res v
 failure = Left . ErrMsg

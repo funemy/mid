@@ -1,9 +1,11 @@
 module Lang (
     Closure (..),
     Env (..),
+    ErrMsg (..),
     Name (..),
     Neutral (..),
     Normal (..),
+    Res,
     Term (..),
     Ty,
     TyCtx,
@@ -124,6 +126,14 @@ instance Show Term where
 newtype Env v = Env [(Name, v)]
     deriving (Show, Eq)
 
+instance Functor Env where
+    fmap f (Env xs) = Env (map (second f) xs)
+
+newtype ErrMsg = ErrMsg String
+    deriving (Show, Eq)
+
+type Res v = Either ErrMsg v
+
 data Closure = Closure
     { cEnv :: Env Val
     , cName :: Name
@@ -201,6 +211,3 @@ data TyCtxEntry
 
 -- FIXME: Consider changing this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
 type TyCtx = Env TyCtxEntry
-
-instance Functor Env where
-    fmap f (Env xs) = Env (map (second f) xs)

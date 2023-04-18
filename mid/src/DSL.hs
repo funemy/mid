@@ -79,8 +79,10 @@ suc :: Term -> Term
 suc = Succ
 
 nat :: Int -> Term
-nat 0 = Zero
-nat n = Succ (nat (n - 1))
+nat n
+    | n == 0 = Zero
+    | n > 0 = Succ (nat (n - 1))
+    | otherwise = error "Cannot convert a negative interger to a natural number."
 
 (===) :: Term -> Term -> Term -> Term
 (a === b) ty = Equal ty a b
@@ -93,7 +95,7 @@ subst :: Term -> Term -> Term -> Term
 subst = Subst
 
 top :: Term
-top = UnitTy
+top = Top
 
 unit :: Term
 unit = Unit

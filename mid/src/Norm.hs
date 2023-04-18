@@ -174,7 +174,7 @@ eval env (Subst t1 t2 t3) = do
     t2' <- eval env t2
     t3' <- eval env t3
     doSubst t1' t2' t3'
-eval _ UnitTy = Right VUnitTy
+eval _ Top = Right VTop
 eval _ Unit = Right VUnit
 eval _ Absurd = Right VAbsurd
 eval env (IndAbsurd t1 t2) = do
@@ -217,11 +217,11 @@ reify' ctx VNat (VSucc n) = do
     Right (Succ n')
 reify' _ (VEqual{}) VRefl = Right Refl
 -- any terms with unit type can only be Unit
-reify' _ VUnitTy _ = Right Unit
+reify' _ VTop _ = Right Unit
 reify' _ VAtom (VQuote s) = Right (Quote s)
 -- types
 reify' _ VUniverse VNat = Right Nat
-reify' _ VUniverse VUnitTy = Right UnitTy
+reify' _ VUniverse VTop = Right Top
 reify' _ VUniverse VAtom = Right Atom
 reify' _ VUniverse VAbsurd = Right Absurd
 reify' ctx VUniverse (VPi tyA cls@(Closure _ n _)) = do

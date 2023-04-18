@@ -30,7 +30,7 @@ alphaEquiv' :: Int -> NameSpace -> Term -> NameSpace -> Term -> Bool
 -- simple cases
 alphaEquiv' _ _ Nat _ Nat = True
 alphaEquiv' _ _ Zero _ Zero = True
-alphaEquiv' _ _ UnitTy _ UnitTy = True
+alphaEquiv' _ _ Top _ Top = True
 alphaEquiv' _ _ Unit _ Unit = True
 alphaEquiv' _ _ Absurd _ Absurd = True
 alphaEquiv' _ _ Atom _ Atom = True
@@ -234,12 +234,12 @@ infer i ctx t@(Subst prop propX eq) = do
     -- constructing the return type, i.e., prop y
     propYTy <- doApp propV y
     Right propYTy
-infer i _ UnitTy = do
-    traceM (infMsg i ++ show UnitTy)
+infer i _ Top = do
+    traceM (infMsg i ++ show Top)
     Right VUniverse
 infer i _ Unit = do
     traceM (infMsg i ++ show Unit)
-    Right VUnitTy
+    Right VTop
 infer i _ Absurd = do
     traceM (infMsg i ++ show Absurd)
     Right VUniverse

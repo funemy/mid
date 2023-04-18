@@ -59,7 +59,7 @@ data Term
       -- 2nd term: proof of the first property on x, i.e., (p x)
       -- 3rd term: equality proof of x=y
       Subst Term Term Term
-    | UnitTy
+    | Top
     | Unit
     | Absurd
     | -- | Induction principle for Absurd
@@ -111,7 +111,7 @@ instance Show Term where
     show (Equal ty t1 t2) = printf "%s≡%s:%s" (show t1) (show t2) (show ty)
     show Refl = "refl"
     show (Subst t1 t2 t3) = printf "(subst %s %s %s)" (show t1) (show t2) (show t3)
-    show UnitTy = "Unit"
+    show Top = "Top"
     show Unit = "()"
     show Absurd = "⊥"
     show (IndAbsurd e ty) = printf "(ind-absurd (%s) (%s))" (show e) (show ty)
@@ -173,7 +173,7 @@ data Val
     | VSucc Val
     | VEqual Ty Val Val
     | VRefl
-    | VUnitTy
+    | VTop
     | VUnit
     | VAbsurd
     | VAtom

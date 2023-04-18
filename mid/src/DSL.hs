@@ -17,12 +17,9 @@ module DSL (
     (===),
     refl,
     subst,
-    top,
     unit,
     bot,
-    atom,
     quo,
-    set,
     as,
     induction,
     sym,
@@ -94,23 +91,14 @@ refl = Refl
 subst :: Term -> Term -> Term -> Term
 subst = Subst
 
-top :: Term
-top = Top
-
 unit :: Term
 unit = Unit
 
 bot :: Term
 bot = Absurd
 
-atom :: Term
-atom = Atom
-
 quo :: String -> Term
 quo = Quote
-
-set :: Term
-set = Universe
 
 as :: Term -> Term -> Term
 as = As

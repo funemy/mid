@@ -120,7 +120,7 @@ sym t1 t2 = error ("Invalid input to sym: " ++ show t1 ++ ", " ++ show t2)
 -- 2nd param: a proof of 1st param
 -- 3rd param: an equality proposition (y===z) tyA
 -- 4th param: a proof of 3rd param
--- return: a proof of x===z
+-- return: a proof of (x===z) tyA
 trans :: Term -> Term -> Term -> Term -> Term
 trans (Equal eqabTy ta tb) eqabPf (Equal eqbcTy _ tc) eqbcPf
     | eqabTy == eqbcTy = app (app (app (app (app (app transProp eqabTy) ta) tb) tc) eqabPf) eqbcPf
@@ -146,9 +146,9 @@ trans t1 t2 t3 t4 = error ("Invalid input to trans: " ++ show t1 ++ ", " ++ show
 -- | Apply congruence to an equality proof
 -- 1st param: a function type A -> B
 -- 2nd param: a function that has the type A -> B
--- 3rd param: a equality proposition x === y : A
+-- 3rd param: a equality proposition (x === y) A
 -- 4th param: a proof of the 3rd param
--- return: a proof of f x === f y : B
+-- return: a proof of (f x === f y) B
 cong :: Term -> Term -> Term -> Term -> Term
 cong (Pi _ aTy bTy) fun (Equal _ ta tb) eqab = app (app (app (app (app (app congProp aTy) bTy) ta) tb) fun) eqab
   where

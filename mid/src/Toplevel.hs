@@ -45,12 +45,12 @@ toplevel :: TyCtx -> Toplevel -> Res (TyCtx, Output)
 toplevel ctx top
     | valid top = case top of
         Definition name t -> do
-            ty <- infer 0 ctx t
+            ty <- infer ctx t
             v <- eval (toEnv ctx) t
             let ctx' = extend ctx name (Def ty v)
             Right (ctx', Void)
         Program t -> do
-            ty <- infer 0 ctx t
+            ty <- infer ctx t
             v <- eval (toEnv ctx) t
             ty' <- reify' ctx VUniverse ty
             v' <- reify' ctx ty v

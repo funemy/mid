@@ -3,7 +3,6 @@ module TyCheck (
     toEnv,
 ) where
 
-import Debug.Trace
 import Env
 import Err (errMsgTyCk)
 import Lang (
@@ -133,86 +132,69 @@ isAbsurd :: Ty -> Res ()
 isAbsurd VAbsurd = Right ()
 isAbsurd ty = Left $ errMsgTyCk "expect an Absurd type, but got" ty
 
-infMsg :: Int -> String
-infMsg n = replicate n ' ' ++ "[Infer]: "
-ckMsg :: Int -> String
-ckMsg n = replicate n ' ' ++ "[Check]: "
-
-infer :: Int -> TyCtx -> Term -> Res Ty
-infer i ctx t@(Var n) = do
-    traceM (infMsg i ++ "lookup `" ++ show t ++ "` under: " ++ show ctx)
+infer :: TyCtx -> Term -> Res Ty
+infer ctx (Var n) = do
     lookupTy ctx n
-infer i ctx t@(Pi n tyA tyB) = do
-    traceM (infMsg i ++ show t)
-    check (i + 2) ctx tyA VUniverse
+infer ctx (Pi n tyA tyB) = do
+    check ctx tyA VUniverse
     tyA' <- eval (toEnv ctx) tyA
-    check (i + 2) (extend ctx n (Decl tyA')) tyB VUniverse
+    check (extend ctx n (Decl tyA')) tyB VUniverse
     Right VUniverse
-infer i ctx t@(App f a) = do
-    traceM (infMsg i ++ show t)
-    fTy <- infer (i + 2) ctx f
+infer ctx (App f a) = do
+    fTy <- infer ctx f
     (tyA, cls) <- isPi fTy
-    check (i + 2) ctx a tyA
+    check ctx a tyA
     aVal <- eval (toEnv ctx) a
     tyB <- evalCls cls aVal
     Right tyB
-infer i ctx t@(Sigma n tyA tyB) = do
-    traceM (infMsg i ++ show t)
-    check (i + 2) ctx tyA VUniverse
+infer ctx (Sigma n tyA tyB) = do
+    check ctx tyA VUniverse
     tyA' <- eval (toEnv ctx) tyA
-    check (i + 2) (extend ctx n (Decl tyA')) tyB VUniverse
+    check (extend ctx n (Decl tyA')) tyB VUniverse
     Right VUniverse
-infer i ctx t@(Fst p) = do
-    traceM (infMsg i ++ show t)
-    pTy <- infer (i + 2) ctx p
+infer ctx (Fst p) = do
+    pTy <- infer ctx p
     (tyA, _) <- isSigma pTy
     Right tyA
-infer i ctx t@(Snd p) = do
-    traceM (infMsg i ++ show t)
-    pTy <- infer (i + 2) ctx p
+infer ctx (Snd p) = do
+    pTy <- infer ctx p
     (_, cls) <- isSigma pTy
     l <- eval (toEnv ctx) (Fst p)
     tyB <- evalCls cls l
     Right tyB
-infer i _ Nat = do
-    traceM (infMsg i ++ show Nat)
+infer _ Nat = do
     Right VUniverse
-infer i _ Zero = do
-    traceM (infMsg i ++ show Zero)
+infer _ Zero = do
     Right VNat
-infer i ctx t@(Succ n) = do
-    traceM (infMsg i ++ show t)
-    ty <- infer (i + 2) ctx n
+infer ctx (Succ n) = do
+    ty <- infer ctx n
     isNat ty
     Right VNat
-infer i ctx t@(IndNat prop base ind nat) = do
-    traceM (infMsg i ++ show t)
+infer ctx (IndNat prop base ind nat) = do
     -- nat => Nat
-    natTy <- infer (i + 2) ctx nat
+    natTy <- infer ctx nat
     isNat natTy
     -- prop <= Pi x : Nat. U
     propTy <- eval emptyEnv (Pi (Name "x") Nat Universe)
-    check (i + 2) ctx prop propTy
+    check ctx prop propTy
     -- base <= prop 0
     propZ <- eval (toEnv ctx) (App prop Zero)
-    check (i + 2) ctx base propZ
+    check ctx base propZ
     -- ind <= Pi k : Nat . prop k -> prop (k+1)
     propV <- eval (toEnv ctx) prop
     propK <- indStepTy propV
-    check (i + 2) ctx ind propK
+    check ctx ind propK
     -- conclusion: prop nat
     propN <- eval (toEnv ctx) (App prop nat)
     Right propN
-infer i ctx t@(Equal ty t1 t2) = do
-    traceM (infMsg i ++ show t)
-    check (i + 2) ctx ty VUniverse
+infer ctx (Equal ty t1 t2) = do
+    check ctx ty VUniverse
     tyV <- eval (toEnv ctx) ty
-    check (i + 2) ctx t1 tyV
-    check (i + 2) ctx t2 tyV
+    check ctx t1 tyV
+    check ctx t2 tyV
     Right VUniverse
-infer i ctx t@(Subst prop propX eq) = do
-    traceM (infMsg i ++ show t)
-    eqTy <- infer (i + 2) ctx eq
+infer ctx (Subst prop propX eq) = do
+    eqTy <- infer ctx eq
     (tyA, x, y) <- isEq eqTy
     -- A trick for constructing this pi type
     -- since tyA is a value instead of a term, we represent the type as a variable
@@ -227,47 +209,39 @@ infer i ctx t@(Subst prop propX eq) = do
     -- In theory we can still make things work by only calling `eval`,
     -- but that also requires creating dummy variables and extending the env.
     -- No satisfying solution for now :(.
-    check (i + 2) ctx prop propTy
+    check ctx prop propTy
     propV <- eval (toEnv ctx) prop
     propXTy <- doApp propV x
-    check (i + 2) ctx propX propXTy
+    check ctx propX propXTy
     -- constructing the return type, i.e., prop y
     propYTy <- doApp propV y
     Right propYTy
-infer i _ Top = do
-    traceM (infMsg i ++ show Top)
+infer _ Top = do
     Right VUniverse
-infer i _ Unit = do
-    traceM (infMsg i ++ show Unit)
+infer _ Unit = do
     Right VTop
-infer i _ Absurd = do
-    traceM (infMsg i ++ show Absurd)
+infer _ Absurd = do
     Right VUniverse
-infer i ctx t@(IndAbsurd ty absurd) = do
-    traceM (infMsg i ++ show t)
-    absurdTy <- infer (i + 2) ctx absurd
+infer ctx (IndAbsurd ty absurd) = do
+    absurdTy <- infer ctx absurd
     isAbsurd absurdTy
-    check (i + 2) ctx ty VUniverse
+    check ctx ty VUniverse
     tyV <- eval (toEnv ctx) ty
     Right tyV
-infer i _ Atom = do
-    traceM (infMsg i ++ show Atom)
+infer _ Atom = do
     Right VUniverse
-infer i _ t@(Quote _) = do
-    traceM (infMsg i ++ show t)
+infer _ (Quote _) = do
     Right VAtom
-infer i _ Universe = do
-    traceM (infMsg i ++ show Universe)
+infer _ Universe = do
     Right VUniverse
-infer i ctx t'@(As t ty) = do
-    traceM (infMsg i ++ show t')
+infer ctx (As t ty) = do
     -- NOTE: this check guarantees that ty is actually a type
     -- otherwise it can be an arbitrary term
-    check (i + 2) ctx ty VUniverse
+    check ctx ty VUniverse
     ty' <- eval (toEnv ctx) ty
-    check (i + 2) ctx t ty'
+    check ctx t ty'
     Right ty'
-infer _ _ t = Left $ errMsgTyCk "No inference rule for" t
+infer _ t = Left $ errMsgTyCk "No inference rule for" t
 
 -- Helper function
 -- checking two values are alpha-equivalent under the given type
@@ -277,30 +251,26 @@ equiv ctx ty x y = do
     y' <- reify' ctx ty y
     Right $ alphaEquiv x' y'
 
-check :: Int -> TyCtx -> Term -> Ty -> Res ()
-check i ctx t@(Lam name body) ty = do
-    traceM (ckMsg i ++ show t ++ " : " ++ show ty)
+check :: TyCtx -> Term -> Ty -> Res ()
+check ctx (Lam name body) ty = do
     (tyA, cls) <- isPi ty
     tyB <- evalCls cls (VNeutral tyA (NVar name))
-    check (i + 2) (extend ctx name (Decl tyA)) body tyB
-check i ctx t@(MkPair l r) ty = do
-    traceM (ckMsg i ++ show t ++ " : " ++ show ty)
+    check (extend ctx name (Decl tyA)) body tyB
+check ctx (MkPair l r) ty = do
     (tyA, cls) <- isSigma ty
-    check (i + 2) ctx l tyA
+    check ctx l tyA
     lV <- eval (toEnv ctx) l
     tyB <- evalCls cls lV
-    check (i + 2) ctx r tyB
-check i ctx Refl eq = do
-    traceM (ckMsg i ++ show Refl ++ " : " ++ show eq)
+    check ctx r tyB
+check ctx Refl eq = do
     (ty, x, y) <- isEq eq
     equal <- equiv ctx ty x y
     if equal
         then Right ()
         else Left $ errMsgTyCk "cannot prove equality by refl because x and y are not alpha-equivalent" (ty, x, y)
 -- subsumption
-check i ctx t ty1 = do
-    traceM (ckMsg i ++ show t ++ " : " ++ show ty1)
-    ty2 <- infer (i + 2) ctx t
+check ctx t ty1 = do
+    ty2 <- infer ctx t
     equal <- equiv ctx VUniverse ty1 ty2
     if equal
         then Right ()

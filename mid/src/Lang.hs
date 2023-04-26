@@ -211,3 +211,24 @@ data TyCtxEntry
 
 -- FIXME: Consider changing this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
 type TyCtx = Env TyCtxEntry
+
+-- | Derivation tree
+-- Judegements in our language so far:
+-- 1. typing judegement \Gamma |- t <= T or \Gamma |- t => T
+-- 2. judgemental equality
+-- 3. reduction judgement
+--
+-- Reduction judgements will show up in the judgemental equality
+-- where the (==>) relations in the premises are reduction judgements:
+--   a ==> v : T   b ==> v : T
+--  --------------------------
+--        a ≡ b : T
+data DerivTree
+    = -- | Typing judgement
+      -- sub-derivations, typing context, term, type
+      TyJdg [DerivTree] TyCtx Term Term
+    | -- | Judgemental equality
+      -- sub-derivations, lhs (term), rhs (term), type
+      EqJdg [DerivTree] Term Term Term
+    | RedJdg [DerivTree] Term Val
+    | ReifyJdg [DerivTree] Val Term

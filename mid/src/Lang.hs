@@ -5,7 +5,8 @@ module Lang (
     Name (..),
     Neutral (..),
     Normal (..),
-    Res,
+    Result,
+    TyCk,
     Term (..),
     Ty,
     TyCtx,
@@ -14,6 +15,8 @@ module Lang (
     annotated,
 ) where
 
+import Control.Monad.Reader (Reader)
+import Control.Monad.Writer.Lazy (Writer)
 import Data.Bifunctor (Bifunctor (second))
 import Text.Printf (printf)
 
@@ -132,8 +135,6 @@ instance Functor Env where
 newtype ErrMsg = ErrMsg String
     deriving (Show, Eq)
 
-type Res v = Either ErrMsg v
-
 data Closure = Closure
     { cEnv :: Env Val
     , cName :: Name
@@ -223,6 +224,7 @@ type TyCtx = Env TyCtxEntry
 --   a ==> v : T   b ==> v : T
 --  --------------------------
 --        a ≡ b : T
+-- FIXME: but this ADT is not a monoid.
 data DerivTree
     = -- | Typing judgement
       -- sub-derivations, typing context, term, type
@@ -232,3 +234,16 @@ data DerivTree
       EqJdg [DerivTree] Term Term Term
     | RedJdg [DerivTree] Term Val
     | ReifyJdg [DerivTree] Val Term
+    | AlphaEqJdg [DerivTree] Term Term
+    | -- | A pseudo judgement where a derivation gets stuck
+      -- This should correspond to the case where an error msg is generated
+      StuckJdg
+
+type Result v = (Either ErrMsg v)
+
+-- | Computation of type checking
+-- which is a computation that requires a typing context
+type TyCk v = Reader TyCtx (Result v)
+
+-- | Computation of type checking with debugging support
+type TyCkDbg v = Reader TyCtx (Writer DerivTree (Either ErrMsg v))

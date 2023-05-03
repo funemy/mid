@@ -91,7 +91,7 @@ alphaEquiv' _ _ _ _ _ = False
 alphaEquiv :: Term -> Term -> Bool
 alphaEquiv t1 = alphaEquiv' 0 emptyEnv t1 emptyEnv
 
-lookupTy :: TyCtx -> Name -> Res Ty
+lookupTy :: TyCtx -> Name -> Result Ty
 lookupTy ctx n = do
     entry <- lookup ctx n
     case entry of
@@ -112,27 +112,27 @@ toEnv (Env ((n, e) : xs)) = extend rest n v
 -- isXXXs below are a set of helper functions used in type checking
 -- In the tutorial, these functions require TyCtx mostly for debugging.
 -- We will keep the functions simple for the moment (instead of requiring TyCtx).
-isPi :: Ty -> Res (Ty, Closure)
+isPi :: Ty -> Result (Ty, Closure)
 isPi (VPi tyA cls) = Right (tyA, cls)
 isPi ty = Left $ errMsgTyCk "expect a Pi type, but got" ty
 
-isSigma :: Ty -> Res (Ty, Closure)
+isSigma :: Ty -> Result (Ty, Closure)
 isSigma (VSigma tyA cls) = Right (tyA, cls)
 isSigma ty = Left $ errMsgTyCk "expect a Sigma type, but got" ty
 
-isNat :: Ty -> Res ()
+isNat :: Ty -> Result ()
 isNat VNat = Right ()
 isNat ty = Left $ errMsgTyCk "expect a Nat type, but got" ty
 
-isEq :: Ty -> Res (Ty, Val, Val)
+isEq :: Ty -> Result (Ty, Val, Val)
 isEq (VEqual ty t1 t2) = Right (ty, t1, t2)
 isEq ty = Left $ errMsgTyCk "expect an Equal type, but got" ty
 
-isAbsurd :: Ty -> Res ()
+isAbsurd :: Ty -> Result ()
 isAbsurd VAbsurd = Right ()
 isAbsurd ty = Left $ errMsgTyCk "expect an Absurd type, but got" ty
 
-infer :: TyCtx -> Term -> Res Ty
+infer :: TyCtx -> Term -> Result Ty
 infer ctx (Var n) = do
     lookupTy ctx n
 infer ctx (Pi n tyA tyB) = do
@@ -245,13 +245,13 @@ infer _ t = Left $ errMsgTyCk "No inference rule for" t
 
 -- Helper function
 -- checking two values are alpha-equivalent under the given type
-equiv :: TyCtx -> Ty -> Val -> Val -> Res Bool
+equiv :: TyCtx -> Ty -> Val -> Val -> Result Bool
 equiv ctx ty x y = do
     x' <- reify' ctx ty x
     y' <- reify' ctx ty y
     Right $ alphaEquiv x' y'
 
-check :: TyCtx -> Term -> Ty -> Res ()
+check :: TyCtx -> Term -> Ty -> Result ()
 check ctx (Lam name body) ty = do
     (tyA, cls) <- isPi ty
     tyB <- evalCls cls (VNeutral tyA (NVar name))

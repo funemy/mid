@@ -40,14 +40,14 @@ vArrow :: Val -> Term -> Val
 vArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
 
 -- Helper function for evaluating closures
-evalCls :: Closure -> Val -> Res Val
+evalCls :: Closure -> Val -> Result Val
 evalCls (Closure env name body) v =
     let env' = extend env name v
      in eval env' body
 
 -- For each elimination form (except NVar?)
 -- There should be a separate helper function, to keep eval simple
-doApp :: Val -> Val -> Res Val
+doApp :: Val -> Val -> Result Val
 doApp f a = case f of
     VLam cls -> evalCls cls a
     VNeutral (VPi tyA cls) func -> do
@@ -56,13 +56,13 @@ doApp f a = case f of
         Right $ VNeutral tyB (NApp func aNorm)
     t -> Left $ errMsgNorm "applying a non-function" t
 
-doFst :: Val -> Res Val
+doFst :: Val -> Result Val
 doFst = \case
     VMkPair l _ -> Right l
     VNeutral (VSigma ty _) p -> Right $ VNeutral ty (NFst p)
     t -> Left $ errMsgNorm "projecting a non-pair value" t
 
-doSnd :: Val -> Res Val
+doSnd :: Val -> Result Val
 doSnd = \case
     VMkPair _ r -> Right r
     VNeutral (VSigma tyA cls) p -> do
@@ -70,7 +70,7 @@ doSnd = \case
         Right $ VNeutral tyB (NSnd p)
     t -> Left $ errMsgNorm "projecting a non-pair value" t
 
-doIndNat :: Val -> Val -> Val -> Val -> Res Val
+doIndNat :: Val -> Val -> Val -> Val -> Result Val
 doIndNat prop base ind = \case
     VZero -> Right base
     VSucc n -> do
@@ -98,7 +98,7 @@ doIndNat prop base ind = \case
 -- The type for induction step is: \Pi n : Nat . p n -> p (n+1),
 -- where p is the property on natural number introduced by outer scope.
 -- NOTE: This function is also helpful in type checking
-indStepTy :: Val -> Res Val
+indStepTy :: Val -> Result Val
 indStepTy pVal =
     let n = Name "n"
         nVar = Var n
@@ -108,7 +108,7 @@ indStepTy pVal =
         env = Env [(Name "p", pVal)]
      in eval env t
 
-doSubst :: Val -> Val -> Val -> Res Val
+doSubst :: Val -> Val -> Val -> Result Val
 doSubst prop pfA = \case
     VRefl -> Right pfA
     VNeutral (VEqual ty a b) eq -> do
@@ -121,7 +121,7 @@ doSubst prop pfA = \case
         Right $ VNeutral propBTy (NSubst propNorm pfANorm eq)
     t -> Left $ errMsgNorm "substituing on non-equality proof" t
 
-doIndAbsurd :: Val -> Val -> Res Val
+doIndAbsurd :: Val -> Val -> Result Val
 doIndAbsurd prop = \case
     VNeutral VAbsurd neu ->
         let propNorm = Normal VUniverse prop
@@ -129,7 +129,7 @@ doIndAbsurd prop = \case
     t -> Left $ errMsgNorm "using induction principle for absuridity on non-absurd value" t
 
 -- Eval function
-eval :: Env Val -> Term -> Res Val
+eval :: Env Val -> Term -> Result Val
 eval env (Var n) = lookup env n
 eval env (Pi n tyA tyB) = do
     tyA' <- eval env tyA
@@ -190,12 +190,12 @@ eval env (As t _) = eval env t
 -- Convert normal forms back into terms, guided by type.
 -- The reification in dependent-type system is slightly different from simpler systems.
 -- NOTE: In DT-language, reification can happen during type checking, therefore it requires a typing context as its first argument.
-reify :: TyCtx -> Normal -> Res Term
+reify :: TyCtx -> Normal -> Result Term
 reify ctx (Normal ty val) = reify' ctx ty val
 
 -- Notice that when pattern matching the second argument,
 -- we only match against those values that represent types.
-reify' :: TyCtx -> Ty -> Val -> Res Term
+reify' :: TyCtx -> Ty -> Val -> Result Term
 -- terms
 reify' ctx (VPi tyA cls@(Closure _ n _)) f = do
     let xName = freshen (names ctx) n
@@ -258,7 +258,7 @@ reify' ctx ty (VNeutral ty' neu) =
 -- invalid patterns
 reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 
-reifyNeu :: TyCtx -> Neutral -> Res Term
+reifyNeu :: TyCtx -> Neutral -> Result Term
 reifyNeu _ (NVar n) = Right $ Var n
 reifyNeu ctx (NApp f a) = do
     f' <- reifyNeu ctx f

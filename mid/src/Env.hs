@@ -1,5 +1,5 @@
 module Env (
-    Res,
+    Result,
     emptyEnv,
     extend,
     freshen,
@@ -7,16 +7,16 @@ module Env (
     names,
 ) where
 
-import Lang (Env (..), ErrMsg (..), Name (..), Res)
+import Lang (Env (..), ErrMsg (..), Name (..), Result)
 import Prelude hiding (lookup)
 
 emptyEnv :: Env v
 emptyEnv = Env []
 
-failure :: String -> Res v
+failure :: String -> Result v
 failure = Left . ErrMsg
 
-lookup :: Env v -> Name -> Res v
+lookup :: Env v -> Name -> Result v
 lookup (Env []) (Name n) = failure ("Not found identifier: " ++ n)
 lookup (Env ((x, v) : xs)) n
     | x == n = Right v

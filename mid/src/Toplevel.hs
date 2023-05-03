@@ -5,7 +5,7 @@ module Toplevel (
     runWithDefs,
 ) where
 
-import Env (Res, emptyEnv, extend)
+import Env (Result, emptyEnv, extend)
 import Err (errMsgTop)
 import Lang (
     Name,
@@ -41,7 +41,7 @@ valid :: Toplevel -> Bool
 valid (Definition _ t) = annotated t
 valid (Program _) = True
 
-toplevel :: TyCtx -> Toplevel -> Res (TyCtx, Output)
+toplevel :: TyCtx -> Toplevel -> Result (TyCtx, Output)
 toplevel ctx top
     | valid top = case top of
         Definition name t -> do
@@ -57,12 +57,12 @@ toplevel ctx top
             Right (ctx, Output (As v' ty'))
     | otherwise = Left $ errMsgTop "toplevel definition must have type annotation" top
 
-run :: Term -> Res Output
+run :: Term -> Result Output
 run t = do
     (_, out) <- toplevel emptyEnv (Program t)
     return out
 
-runWithDefs :: [(Name, Term)] -> [Term] -> Res [Output]
+runWithDefs :: [(Name, Term)] -> [Term] -> Result [Output]
 runWithDefs ds ps = do
     let defs = map (uncurry Definition) ds
         programs = map Program ps
@@ -70,7 +70,7 @@ runWithDefs ds ps = do
     (_, outs) <- go emptyEnv [] tops
     return outs
   where
-    go :: TyCtx -> [Output] -> [Toplevel] -> Res (TyCtx, [Output])
+    go :: TyCtx -> [Output] -> [Toplevel] -> Result (TyCtx, [Output])
     go ctx outs [] = return (ctx, outs)
     go ctx outs (x : xs) = do
         (ctx', out) <- toplevel ctx x

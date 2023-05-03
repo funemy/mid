@@ -7,7 +7,7 @@
 module Example () where
 
 import DSL
-import Env (Res)
+import Env (Result)
 import Lang (Name (..))
 import Text.Pretty.Simple (pPrint)
 import Toplevel (Output, run)

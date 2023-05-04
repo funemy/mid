@@ -1,6 +1,7 @@
 module TyCheck (
     infer,
     toEnv,
+    runTyCk,
 ) where
 
 import Env
@@ -8,6 +9,7 @@ import Err (errMsgTyCk)
 import Lang (
     Closure (..),
     Env (..),
+    ErrMsg,
     Name (..),
     Neutral (..),
     Term (..),
@@ -24,6 +26,44 @@ type Depth = Int
 -- used for alpha-equivalence checking
 type NameSpace = Env Depth
 
+-- | Computation of type checking
+-- which is a computation that requires a typing context
+--
+-- The definitions below is essentially a reader monad,
+-- but defining it ourself can remove some boilerplates.
+newtype TyCk v = TyCk {runTyCk :: TyCtx -> Result v}
+
+instance Functor TyCk where
+    fmap f (TyCk comp) = TyCk $ \ctx -> fmap f (comp ctx)
+
+instance Applicative TyCk where
+    pure v = TyCk $ \_ -> pure v
+    (TyCk f) <*> (TyCk comp) = TyCk $ \ctx ->
+        let f' = f ctx
+            comp' = comp ctx
+         in f' <*> comp'
+
+instance Monad TyCk where
+    (TyCk comp) >>= f = TyCk $ \ctx -> do
+        r <- comp ctx
+        runTyCk (f r) ctx
+
+failure :: ErrMsg -> TyCk v
+failure err = TyCk $ \_ ->
+    Left err
+
+with :: (TyCtx -> TyCtx) -> TyCk v -> TyCk v
+with f (TyCk comp) = TyCk $ \ctx ->
+    comp (f ctx)
+
+getCtx :: TyCk TyCtx
+getCtx = TyCk $ \ctx -> pure ctx
+
+-- Lifting a Result value to TyCk computation
+-- So that we don't need to write a wrapper for every imported function that returns Result
+lift :: Result v -> TyCk v
+lift r = TyCk $ const r
+
 -- the auxliary function for alpha equivalence checking
 alphaEquiv' :: Int -> NameSpace -> Term -> NameSpace -> Term -> Bool
 -- simple cases
@@ -36,7 +76,7 @@ alphaEquiv' _ _ Atom _ Atom = True
 alphaEquiv' _ _ Universe _ Universe = True
 alphaEquiv' _ _ Refl _ Refl = True
 alphaEquiv' _ _ (Quote s1) _ (Quote s2) = s1 == s2
-alphaEquiv' _ ns1 (Var n1) ns2 (Var n2) = lookup ns1 n1 == lookup ns2 n2
+alphaEquiv' _ ns1 (Var n1) ns2 (Var n2) = lookup n1 ns1 == lookup n2 ns2
 -- inductive cases
 alphaEquiv' d ns1 (App t11 t12) ns2 (App t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
 alphaEquiv' d ns1 (MkPair t11 t12) ns2 (MkPair t21 t22) = alphaEquiv' d ns1 t11 ns2 t21 && alphaEquiv' d ns1 t12 ns2 t22
@@ -71,18 +111,18 @@ alphaEquiv' d ns1 (IndNat t11 t12 t13 t14) ns2 (IndNat t21 t22 t23 t24) =
 -- interesting cases
 alphaEquiv' d ns1 (Pi n1 t11 t12) ns2 (Pi n2 t21 t22) =
     let equiv1 = alphaEquiv' d ns1 t11 ns2 t21
-        ns1' = extend ns1 n1 d
-        ns2' = extend ns2 n2 d
+        ns1' = extend n1 d ns1
+        ns2' = extend n2 d ns2
         equiv2 = alphaEquiv' (d + 1) ns1' t12 ns2' t22
      in equiv1 && equiv2
 alphaEquiv' d ns1 (Lam n1 t1) ns2 (Lam n2 t2) =
-    let ns1' = extend ns1 n1 d
-        ns2' = extend ns2 n2 d
+    let ns1' = extend n1 d ns1
+        ns2' = extend n2 d ns2
      in alphaEquiv' (d + 1) ns1' t1 ns2' t2
 alphaEquiv' d ns1 (Sigma n1 t11 t12) ns2 (Sigma n2 t21 t22) =
     let equiv1 = alphaEquiv' d ns1 t11 ns2 t21
-        ns1' = extend ns1 n1 d
-        ns2' = extend ns2 n2 d
+        ns1' = extend n1 d ns1
+        ns2' = extend n2 d ns2
         equiv2 = alphaEquiv' (d + 1) ns1' t12 ns2' t22
      in equiv1 && equiv2
 -- fallback case
@@ -91,18 +131,19 @@ alphaEquiv' _ _ _ _ _ = False
 alphaEquiv :: Term -> Term -> Bool
 alphaEquiv t1 = alphaEquiv' 0 emptyEnv t1 emptyEnv
 
-lookupTy :: TyCtx -> Name -> Result Ty
-lookupTy ctx n = do
-    entry <- lookup ctx n
+lookupTy :: Name -> TyCk Ty
+lookupTy n = do
+    ctx <- getCtx
+    entry <- lift $ lookup n ctx
     case entry of
-        Decl ty -> return ty
-        Def ty _ -> return ty
+        Decl ty -> pure ty
+        Def ty _ -> pure ty
 
 -- Convert a typing context into an Env of Val.
 -- Used when calling `eval` in `infer`
 toEnv :: TyCtx -> Env Val
 toEnv (Env []) = Env []
-toEnv (Env ((n, e) : xs)) = extend rest n v
+toEnv (Env ((n, e) : xs)) = extend n v rest
   where
     rest = toEnv (Env xs)
     v = case e of
@@ -112,95 +153,98 @@ toEnv (Env ((n, e) : xs)) = extend rest n v
 -- isXXXs below are a set of helper functions used in type checking
 -- In the tutorial, these functions require TyCtx mostly for debugging.
 -- We will keep the functions simple for the moment (instead of requiring TyCtx).
-isPi :: Ty -> Result (Ty, Closure)
-isPi (VPi tyA cls) = Right (tyA, cls)
-isPi ty = Left $ errMsgTyCk "expect a Pi type, but got" ty
+isPi :: Ty -> TyCk (Ty, Closure)
+isPi (VPi tyA cls) = pure (tyA, cls)
+isPi ty = failure $ errMsgTyCk "expect a Pi type, but got" ty
 
-isSigma :: Ty -> Result (Ty, Closure)
-isSigma (VSigma tyA cls) = Right (tyA, cls)
-isSigma ty = Left $ errMsgTyCk "expect a Sigma type, but got" ty
+isSigma :: Ty -> TyCk (Ty, Closure)
+isSigma (VSigma tyA cls) = pure (tyA, cls)
+isSigma ty = failure $ errMsgTyCk "expect a Sigma type, but got" ty
 
-isNat :: Ty -> Result ()
-isNat VNat = Right ()
-isNat ty = Left $ errMsgTyCk "expect a Nat type, but got" ty
+isNat :: Ty -> TyCk ()
+isNat VNat = pure ()
+isNat ty = failure $ errMsgTyCk "expect a Nat type, but got" ty
 
-isEq :: Ty -> Result (Ty, Val, Val)
-isEq (VEqual ty t1 t2) = Right (ty, t1, t2)
-isEq ty = Left $ errMsgTyCk "expect an Equal type, but got" ty
+isEq :: Ty -> TyCk (Ty, Val, Val)
+isEq (VEqual ty t1 t2) = pure (ty, t1, t2)
+isEq ty = failure $ errMsgTyCk "expect an Equal type, but got" ty
 
-isAbsurd :: Ty -> Result ()
-isAbsurd VAbsurd = Right ()
-isAbsurd ty = Left $ errMsgTyCk "expect an Absurd type, but got" ty
+isAbsurd :: Ty -> TyCk ()
+isAbsurd VAbsurd = pure ()
+isAbsurd ty = failure $ errMsgTyCk "expect an Absurd type, but got" ty
 
-infer :: TyCtx -> Term -> Result Ty
-infer ctx (Var n) = do
-    lookupTy ctx n
-infer ctx (Pi n tyA tyB) = do
-    check ctx tyA VUniverse
-    tyA' <- eval (toEnv ctx) tyA
-    check (extend ctx n (Decl tyA')) tyB VUniverse
-    Right VUniverse
-infer ctx (App f a) = do
-    fTy <- infer ctx f
+infer :: Term -> TyCk Ty
+infer (Var n) = do
+    lookupTy n
+infer (Pi n tyA tyB) = do
+    check tyA VUniverse
+    ctx <- getCtx
+    tyA' <- lift $ eval (toEnv ctx) tyA
+    with (extend n (Decl tyA')) (check tyB VUniverse)
+    pure VUniverse
+infer (App f a) = do
+    fTy <- infer f
     (tyA, cls) <- isPi fTy
-    check ctx a tyA
-    aVal <- eval (toEnv ctx) a
-    tyB <- evalCls cls aVal
-    Right tyB
-infer ctx (Sigma n tyA tyB) = do
-    check ctx tyA VUniverse
-    tyA' <- eval (toEnv ctx) tyA
-    check (extend ctx n (Decl tyA')) tyB VUniverse
-    Right VUniverse
-infer ctx (Fst p) = do
-    pTy <- infer ctx p
+    check a tyA
+    ctx <- getCtx
+    aVal <- lift $ eval (toEnv ctx) a
+    lift $ evalCls cls aVal
+infer (Sigma n tyA tyB) = do
+    check tyA VUniverse
+    ctx <- getCtx
+    tyA' <- lift $ eval (toEnv ctx) tyA
+    with (extend n (Decl tyA')) (check tyB VUniverse)
+    pure VUniverse
+infer (Fst p) = do
+    pTy <- infer p
     (tyA, _) <- isSigma pTy
-    Right tyA
-infer ctx (Snd p) = do
-    pTy <- infer ctx p
+    pure tyA
+infer (Snd p) = do
+    pTy <- infer p
     (_, cls) <- isSigma pTy
-    l <- eval (toEnv ctx) (Fst p)
-    tyB <- evalCls cls l
-    Right tyB
-infer _ Nat = do
-    Right VUniverse
-infer _ Zero = do
-    Right VNat
-infer ctx (Succ n) = do
-    ty <- infer ctx n
+    ctx <- getCtx
+    l <- lift $ eval (toEnv ctx) (Fst p)
+    lift $ evalCls cls l
+infer Nat = do
+    pure VUniverse
+infer Zero = do
+    pure VNat
+infer (Succ n) = do
+    ty <- infer n
     isNat ty
-    Right VNat
-infer ctx (IndNat prop base ind nat) = do
+    pure VNat
+infer (IndNat prop base ind nat) = do
+    ctx <- getCtx
     -- nat => Nat
-    natTy <- infer ctx nat
+    natTy <- infer nat
     isNat natTy
     -- prop <= Pi x : Nat. U
-    propTy <- eval emptyEnv (Pi (Name "x") Nat Universe)
-    check ctx prop propTy
+    propTy <- lift $ eval emptyEnv (Pi (Name "x") Nat Universe)
+    check prop propTy
     -- base <= prop 0
-    propZ <- eval (toEnv ctx) (App prop Zero)
-    check ctx base propZ
+    propZ <- lift $ eval (toEnv ctx) (App prop Zero)
+    check base propZ
     -- ind <= Pi k : Nat . prop k -> prop (k+1)
-    propV <- eval (toEnv ctx) prop
-    propK <- indStepTy propV
-    check ctx ind propK
+    propV <- lift $ eval (toEnv ctx) prop
+    propK <- lift $ indStepTy propV
+    check ind propK
     -- conclusion: prop nat
-    propN <- eval (toEnv ctx) (App prop nat)
-    Right propN
-infer ctx (Equal ty t1 t2) = do
-    check ctx ty VUniverse
-    tyV <- eval (toEnv ctx) ty
-    check ctx t1 tyV
-    check ctx t2 tyV
-    Right VUniverse
-infer ctx (Subst prop propX eq) = do
-    eqTy <- infer ctx eq
+    lift $ eval (toEnv ctx) (App prop nat)
+infer (Equal ty t1 t2) = do
+    check ty VUniverse
+    ctx <- getCtx
+    tyV <- lift $ eval (toEnv ctx) ty
+    check t1 tyV
+    check t2 tyV
+    pure VUniverse
+infer (Subst prop propX eq) = do
+    eqTy <- infer eq
     (tyA, x, y) <- isEq eqTy
     -- A trick for constructing this pi type
     -- since tyA is a value instead of a term, we represent the type as a variable
     -- and provide the actual type value in the env, then let `eval` take over.
     let tyName = Name "ty"
-    propTy <- eval (Env [(tyName, tyA)]) (Pi (Name "x") (Var tyName) Universe)
+    propTy <- lift $ eval (Env [(tyName, tyA)]) (Pi (Name "x") (Var tyName) Universe)
     -- check propX is indeed a proof of (prop x)
     -- (x came from the Equal type)
     --
@@ -209,69 +253,72 @@ infer ctx (Subst prop propX eq) = do
     -- In theory we can still make things work by only calling `eval`,
     -- but that also requires creating dummy variables and extending the env.
     -- No satisfying solution for now :(.
-    check ctx prop propTy
-    propV <- eval (toEnv ctx) prop
-    propXTy <- doApp propV x
-    check ctx propX propXTy
+    check prop propTy
+    ctx <- getCtx
+    propV <- lift $ eval (toEnv ctx) prop
+    propXTy <- lift $ doApp propV x
+    check propX propXTy
     -- constructing the return type, i.e., prop y
-    propYTy <- doApp propV y
-    Right propYTy
-infer _ Top = do
-    Right VUniverse
-infer _ Unit = do
-    Right VTop
-infer _ Absurd = do
-    Right VUniverse
-infer ctx (IndAbsurd ty absurd) = do
-    absurdTy <- infer ctx absurd
+    lift $ doApp propV y
+infer Top = do
+    pure VUniverse
+infer Unit = do
+    pure VTop
+infer Absurd = do
+    pure VUniverse
+infer (IndAbsurd ty absurd) = do
+    absurdTy <- infer absurd
     isAbsurd absurdTy
-    check ctx ty VUniverse
-    tyV <- eval (toEnv ctx) ty
-    Right tyV
-infer _ Atom = do
-    Right VUniverse
-infer _ (Quote _) = do
-    Right VAtom
-infer _ Universe = do
-    Right VUniverse
-infer ctx (As t ty) = do
+    check ty VUniverse
+    ctx <- getCtx
+    lift $ eval (toEnv ctx) ty
+infer Atom = do
+    pure VUniverse
+infer (Quote _) = do
+    pure VAtom
+infer Universe = do
+    pure VUniverse
+infer (As t ty) = do
     -- NOTE: this check guarantees that ty is actually a type
     -- otherwise it can be an arbitrary term
-    check ctx ty VUniverse
-    ty' <- eval (toEnv ctx) ty
-    check ctx t ty'
-    Right ty'
-infer _ t = Left $ errMsgTyCk "No inference rule for" t
+    check ty VUniverse
+    ctx <- getCtx
+    ty' <- lift $ eval (toEnv ctx) ty
+    check t ty'
+    pure ty'
+infer t = failure $ errMsgTyCk "No inference rule for" t
 
 -- Helper function
 -- checking two values are alpha-equivalent under the given type
-equiv :: TyCtx -> Ty -> Val -> Val -> Result Bool
-equiv ctx ty x y = do
-    x' <- reify' ctx ty x
-    y' <- reify' ctx ty y
-    Right $ alphaEquiv x' y'
+equiv :: Ty -> Val -> Val -> TyCk Bool
+equiv ty x y = do
+    ctx <- getCtx
+    x' <- lift $ reify' ctx ty x
+    y' <- lift $ reify' ctx ty y
+    pure $ alphaEquiv x' y'
 
-check :: TyCtx -> Term -> Ty -> Result ()
-check ctx (Lam name body) ty = do
+check :: Term -> Ty -> TyCk ()
+check (Lam name body) ty = do
     (tyA, cls) <- isPi ty
-    tyB <- evalCls cls (VNeutral tyA (NVar name))
-    check (extend ctx name (Decl tyA)) body tyB
-check ctx (MkPair l r) ty = do
+    tyB <- lift $ evalCls cls (VNeutral tyA (NVar name))
+    with (extend name (Decl tyA)) (check body tyB)
+check (MkPair l r) ty = do
     (tyA, cls) <- isSigma ty
-    check ctx l tyA
-    lV <- eval (toEnv ctx) l
-    tyB <- evalCls cls lV
-    check ctx r tyB
-check ctx Refl eq = do
+    check l tyA
+    ctx <- getCtx
+    lV <- lift $ eval (toEnv ctx) l
+    tyB <- lift $ evalCls cls lV
+    check r tyB
+check Refl eq = do
     (ty, x, y) <- isEq eq
-    equal <- equiv ctx ty x y
+    equal <- equiv ty x y
     if equal
-        then Right ()
-        else Left $ errMsgTyCk "cannot prove equality by refl because x and y are not alpha-equivalent" (ty, x, y)
+        then return ()
+        else failure $ errMsgTyCk "cannot prove equality by refl because x and y are not alpha-equivalent" (ty, x, y)
 -- subsumption
-check ctx t ty1 = do
-    ty2 <- infer ctx t
-    equal <- equiv ctx VUniverse ty1 ty2
+check t ty1 = do
+    ty2 <- infer t
+    equal <- equiv VUniverse ty1 ty2
     if equal
-        then Right ()
-        else Left $ errMsgTyCk "cannot show equivalence between inferred and checked type on term" (t, ty1, ty2)
+        then pure ()
+        else failure $ errMsgTyCk "cannot show equivalence between inferred and checked type on term" (t, ty1, ty2)

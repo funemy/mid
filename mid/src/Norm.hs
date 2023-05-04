@@ -42,7 +42,7 @@ vArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
 -- Helper function for evaluating closures
 evalCls :: Closure -> Val -> Result Val
 evalCls (Closure env name body) v =
-    let env' = extend env name v
+    let env' = extend name v env
      in eval env' body
 
 -- For each elimination form (except NVar?)
@@ -130,7 +130,7 @@ doIndAbsurd prop = \case
 
 -- Eval function
 eval :: Env Val -> Term -> Result Val
-eval env (Var n) = lookup env n
+eval env (Var n) = lookup n env
 eval env (Pi n tyA tyB) = do
     tyA' <- eval env tyA
     Right $ VPi tyA' (Closure env n tyB)
@@ -202,7 +202,7 @@ reify' ctx (VPi tyA cls@(Closure _ n _)) f = do
     let xVal = VNeutral tyA (NVar xName)
     retTy <- evalCls cls xVal
     app <- doApp f xVal
-    body' <- reify' (extend ctx xName (Decl tyA)) retTy app
+    body' <- reify' (extend xName (Decl tyA) ctx) retTy app
     Right $ Lam xName body'
 reify' ctx (VSigma tyA cls) p = do
     l <- doFst p
@@ -229,14 +229,14 @@ reify' ctx VUniverse (VPi tyA cls@(Closure _ n _)) = do
     let xName = freshen (names ctx) n
     let xVal = VNeutral tyA (NVar xName)
     tyB <- evalCls cls xVal
-    tyB' <- reify' (extend ctx xName (Decl xVal)) VUniverse tyB
+    tyB' <- reify' (extend xName (Decl xVal) ctx) VUniverse tyB
     Right $ Pi xName tyA' tyB'
 reify' ctx VUniverse (VSigma tyA cls@(Closure _ n _)) = do
     tyA' <- reify' ctx VUniverse tyA
     let xName = freshen (names ctx) n
     let xVal = VNeutral tyA (NVar xName)
     tyB <- evalCls cls xVal
-    tyB' <- reify' (extend ctx xName (Decl xVal)) VUniverse tyB
+    tyB' <- reify' (extend xName (Decl xVal) ctx) VUniverse tyB
     Right $ Sigma xName tyA' tyB'
 reify' ctx VUniverse (VEqual ty t1 t2) = do
     ty' <- reify' ctx VUniverse ty

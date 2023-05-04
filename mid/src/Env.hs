@@ -16,14 +16,14 @@ emptyEnv = Env []
 failure :: String -> Result v
 failure = Left . ErrMsg
 
-lookup :: Env v -> Name -> Result v
-lookup (Env []) (Name n) = failure ("Not found identifier: " ++ n)
-lookup (Env ((x, v) : xs)) n
+lookup :: Name -> Env v -> Result v
+lookup (Name n) (Env []) = failure ("Not found identifier: " ++ n)
+lookup n (Env ((x, v) : xs))
     | x == n = Right v
-    | otherwise = lookup (Env xs) n
+    | otherwise = lookup n (Env xs)
 
-extend :: Env v -> Name -> v -> Env v
-extend (Env xs) n val = Env ((n, val) : xs)
+extend :: Name -> v -> Env v -> Env v
+extend n val (Env xs) = Env ((n, val) : xs)
 
 names :: Env v -> [Name]
 names (Env env) = map fst env

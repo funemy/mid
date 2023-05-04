@@ -16,7 +16,7 @@ import Lang (
     annotated,
  )
 import Norm (eval, reify')
-import TyCheck (infer, toEnv)
+import TyCheck (infer, runTyCk, toEnv)
 
 -- | Two kinds of elements at toplevel
 -- 1. Definition: a term bound with a name, moreover, the term must be annotated (check using `isDefinition`)
@@ -45,12 +45,12 @@ toplevel :: TyCtx -> Toplevel -> Result (TyCtx, Output)
 toplevel ctx top
     | valid top = case top of
         Definition name t -> do
-            ty <- infer ctx t
+            ty <- runTyCk (infer t) ctx
             v <- eval (toEnv ctx) t
-            let ctx' = extend ctx name (Def ty v)
+            let ctx' = extend name (Def ty v) ctx
             Right (ctx', Void)
         Program t -> do
-            ty <- infer ctx t
+            ty <- runTyCk (infer t) ctx
             v <- eval (toEnv ctx) t
             ty' <- reify' ctx VUniverse ty
             v' <- reify' ctx ty v

@@ -6,7 +6,6 @@ module Lang (
     Neutral (..),
     Normal (..),
     Result,
-    TyCk,
     Term (..),
     Ty,
     TyCtx,
@@ -15,8 +14,6 @@ module Lang (
     annotated,
 ) where
 
-import Control.Monad.Reader (Reader)
-import Control.Monad.Writer.Lazy (Writer)
 import Data.Bifunctor (Bifunctor (second))
 import Text.Printf (printf)
 
@@ -240,10 +237,3 @@ data DerivTree
       StuckJdg
 
 type Result v = (Either ErrMsg v)
-
--- | Computation of type checking
--- which is a computation that requires a typing context
-type TyCk v = Reader TyCtx (Result v)
-
--- | Computation of type checking with debugging support
-type TyCkDbg v = Reader TyCtx (Writer DerivTree (Either ErrMsg v))

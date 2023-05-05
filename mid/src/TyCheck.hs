@@ -293,8 +293,8 @@ infer t = failure $ errMsgTyCk "No inference rule for" t
 equiv :: Ty -> Val -> Val -> TyCk Bool
 equiv ty x y = do
     ctx <- getCtx
-    x' <- lift $ reify' ctx ty x
-    y' <- lift $ reify' ctx ty y
+    x' <- lift $ reify' (names ctx) ty x
+    y' <- lift $ reify' (names ctx) ty y
     pure $ alphaEquiv x' y'
 
 check :: Term -> Ty -> TyCk ()

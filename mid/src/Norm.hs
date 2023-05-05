@@ -22,8 +22,6 @@ import Lang (
     Normal (..),
     Term (..),
     Ty,
-    TyCtx,
-    TyCtxEntry (..),
     Val (..),
  )
 import Prelude hiding (lookup)
@@ -190,19 +188,19 @@ eval env (As t _) = eval env t
 -- Convert normal forms back into terms, guided by type.
 -- The reification in dependent-type system is slightly different from simpler systems.
 -- NOTE: In DT-language, reification can happen during type checking, therefore it requires a typing context as its first argument.
-reify :: TyCtx -> Normal -> Result Term
+reify :: [Name] -> Normal -> Result Term
 reify ctx (Normal ty val) = reify' ctx ty val
 
 -- Notice that when pattern matching the second argument,
 -- we only match against those values that represent types.
-reify' :: TyCtx -> Ty -> Val -> Result Term
+reify' :: [Name] -> Ty -> Val -> Result Term
 -- terms
 reify' ctx (VPi tyA cls@(Closure _ n _)) f = do
-    let xName = freshen (names ctx) n
+    let xName = freshen ctx n
     let xVal = VNeutral tyA (NVar xName)
     retTy <- evalCls cls xVal
     app <- doApp f xVal
-    body' <- reify' (extend xName (Decl tyA) ctx) retTy app
+    body' <- reify' (xName : ctx) retTy app
     Right $ Lam xName body'
 reify' ctx (VSigma tyA cls) p = do
     l <- doFst p
@@ -226,17 +224,17 @@ reify' _ VUniverse VAtom = Right Atom
 reify' _ VUniverse VAbsurd = Right Absurd
 reify' ctx VUniverse (VPi tyA cls@(Closure _ n _)) = do
     tyA' <- reify' ctx VUniverse tyA
-    let xName = freshen (names ctx) n
+    let xName = freshen ctx n
     let xVal = VNeutral tyA (NVar xName)
     tyB <- evalCls cls xVal
-    tyB' <- reify' (extend xName (Decl xVal) ctx) VUniverse tyB
+    tyB' <- reify' (xName : ctx) VUniverse tyB
     Right $ Pi xName tyA' tyB'
 reify' ctx VUniverse (VSigma tyA cls@(Closure _ n _)) = do
     tyA' <- reify' ctx VUniverse tyA
-    let xName = freshen (names ctx) n
+    let xName = freshen ctx n
     let xVal = VNeutral tyA (NVar xName)
     tyB <- evalCls cls xVal
-    tyB' <- reify' (extend xName (Decl xVal) ctx) VUniverse tyB
+    tyB' <- reify' (xName : ctx) VUniverse tyB
     Right $ Sigma xName tyA' tyB'
 reify' ctx VUniverse (VEqual ty t1 t2) = do
     ty' <- reify' ctx VUniverse ty
@@ -258,7 +256,7 @@ reify' ctx ty (VNeutral ty' neu) =
 -- invalid patterns
 reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 
-reifyNeu :: TyCtx -> Neutral -> Result Term
+reifyNeu :: [Name] -> Neutral -> Result Term
 reifyNeu _ (NVar n) = Right $ Var n
 reifyNeu ctx (NApp f a) = do
     f' <- reifyNeu ctx f

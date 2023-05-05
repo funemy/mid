@@ -5,7 +5,7 @@ module Toplevel (
     runWithDefs,
 ) where
 
-import Env (Result, emptyEnv, extend)
+import Env (Result, emptyEnv, extend, names)
 import Err (errMsgTop)
 import Lang (
     Name,
@@ -52,8 +52,8 @@ toplevel ctx top
         Program t -> do
             ty <- runTyCk (infer t) ctx
             v <- eval (toEnv ctx) t
-            ty' <- reify' ctx VUniverse ty
-            v' <- reify' ctx ty v
+            ty' <- reify' (names ctx) VUniverse ty
+            v' <- reify' (names ctx) ty v
             Right (ctx, Output (As v' ty'))
     | otherwise = Left $ errMsgTop "toplevel definition must have type annotation" top
 

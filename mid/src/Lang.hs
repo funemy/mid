@@ -180,7 +180,23 @@ data Val
     | VNeutral Ty Neutral
     deriving (Show, Eq)
 
--- Types are nothing special but values
+-- | Types are nothing special but values
+-- I don't think there is a fundamental reason why Ty should be a synonym of Val.
+-- We can alternatively define Ty as a synonym of Term.
+-- This alternative definition requires some slight change in our type checking implementation.
+-- Right now, we eagerly evaluate terms to the value domain, and lazily reify the values
+-- back into term domain when we need to reason about their equivalences.
+-- If we take the alternative definition, we will need to eagerly normalize (eval+reify) terms
+-- to their normal forms whenever we encouter a type. This may bring some difference:
+-- 1. We may not need to expose `eval` and `reify` separately, instead, we can just expose `normalize`
+-- 2. As a result, the code in equivalence checking and toplevel will be slighly simpler, because the types
+--    they are dealing with are already in normal form. We don't need to call `reify` anymore.
+-- 3. One downside is about constructing types: now everywhere that's expecting a type accepts a term,
+--    but term is a strict superset of val, so we need to be careful about the term we construct,
+--    either by calling `normalize` everytime, or being super careful and only construct terms
+--    in normal forms.
+-- I guess overall, treating Ty as Term will incur slightly worse performance and make the implementation
+-- less flexible while more error-prone.
 type Ty = Val
 
 -- Normal form

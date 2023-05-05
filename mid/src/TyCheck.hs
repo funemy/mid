@@ -21,11 +21,6 @@ import Lang (
 import Norm (doApp, eval, evalCls, indStepTy, reify')
 import Prelude hiding (lookup)
 
-type Depth = Int
-
--- used for alpha-equivalence checking
-type NameSpace = Env Depth
-
 -- | Computation of type checking
 -- which is a computation that requires a typing context
 --
@@ -64,8 +59,13 @@ getCtx = TyCk $ \ctx -> pure ctx
 lift :: Result v -> TyCk v
 lift r = TyCk $ const r
 
+type Depth = Int
+
+-- used for alpha-equivalence checking
+type NameSpace = Env Depth
+
 -- the auxliary function for alpha equivalence checking
-alphaEquiv' :: Int -> NameSpace -> Term -> NameSpace -> Term -> Bool
+alphaEquiv' :: Depth -> NameSpace -> Term -> NameSpace -> Term -> Bool
 -- simple cases
 alphaEquiv' _ _ Nat _ Nat = True
 alphaEquiv' _ _ Zero _ Zero = True

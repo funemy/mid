@@ -44,12 +44,10 @@ instance Monad TyCk where
         runTyCk (f r) ctx
 
 failure :: ErrMsg -> TyCk v
-failure err = TyCk $ \_ ->
-    Left err
+failure err = TyCk $ \_ -> Left err
 
 with :: (TyCtx -> TyCtx) -> TyCk v -> TyCk v
-with f (TyCk comp) = TyCk $ \ctx ->
-    comp (f ctx)
+with f (TyCk comp) = TyCk $ \ctx -> comp (f ctx)
 
 getCtx :: TyCk TyCtx
 getCtx = TyCk $ \ctx -> pure ctx

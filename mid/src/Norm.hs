@@ -17,6 +17,7 @@ import Err (errMsgNorm)
 import Lang (
     Closure (..),
     Env (..),
+    ErrMsg,
     Name (..),
     Neutral (..),
     Normal (..),
@@ -25,6 +26,27 @@ import Lang (
     Val (..),
  )
 import Prelude hiding (lookup)
+
+-- | Computation of normalization
+newtype Norm v = Norm {runNorm :: [Name] -> Env Val -> Result v}
+
+instance Functor Norm where
+    fmap f (Norm comp) = Norm $ \used env -> fmap f (comp used env)
+
+instance Applicative Norm where
+    pure v = Norm $ \_ _ -> pure v
+    (Norm f) <*> (Norm comp) = Norm $ \used env ->
+        let f' = f used env
+            comp' = comp used env
+         in f' <*> comp'
+
+instance Monad Norm where
+    (Norm comp) >>= f = Norm $ \used env -> do
+        r <- comp used env
+        runNorm (f r) used env
+
+failure :: ErrMsg -> Norm v
+failure err = Norm $ \_ _ -> Left err
 
 -- Helper function for generating function type vales such as A->B
 -- Function types are encoded as Pi-types.

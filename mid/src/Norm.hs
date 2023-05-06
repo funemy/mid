@@ -102,7 +102,11 @@ evalCls' (Closure env name body) v = withEnv (extend name v env) (eval body)
 -- For each elimination form, there is a `doXXX` helper function
 -- The original motivation is to keep the body of `eval` simpler,
 -- since all elimination forms are slightly more complex to handle.
--- `doApp` is also used in type checking to reduce function applications.
+--
+-- `doApp` is also used in type checking to reduce function applications,
+-- therefore the return type is intentionally left as Result (instead of Norm).
+-- When used in different scenario, use the corresponding `lift` function to convert
+-- the return value into the right monad.
 doApp :: Val -> Val -> Result Val
 doApp f a = case f of
     VLam cls -> evalCls cls a
@@ -153,7 +157,6 @@ doIndNat prop base ind = \case
 -- NOTE: Be careful, we need to provide the correct Env when calling `eval`.
 -- The type for induction step is: \Pi n : Nat . p n -> p (n+1),
 -- where p is the property on natural number introduced by outer scope.
--- NOTE: This function is also helpful in type checking
 indStepTy :: Val -> Result Val
 indStepTy pVal =
     let n = Name "n"

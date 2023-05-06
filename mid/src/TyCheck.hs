@@ -18,7 +18,7 @@ import Lang (
     TyCtxEntry (..),
     Val (..),
  )
-import Norm (doApp, evalCls, valArrow)
+import Norm (arrowTy, doApp, evalCls)
 import qualified Norm as N (eval, indStepTy, reify, runEval, runReify)
 import Prelude hiding (lookup)
 
@@ -246,7 +246,7 @@ infer (Subst prop propX eq) = do
     eqTy <- infer eq
     (tyA, x, y) <- isEq eqTy
     -- Construct a Pi-type value: A -> U
-    let propTy = valArrow tyA Universe
+    let propTy = arrowTy tyA Universe
     -- check propX is indeed a proof of (prop x)
     -- (x came from the Equal type)
     --

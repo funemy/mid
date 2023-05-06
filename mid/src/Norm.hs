@@ -13,7 +13,7 @@ module Norm (
     runEval,
     runNorm,
     runReify,
-    valArrow,
+    arrowTy,
 ) where
 
 import Env
@@ -86,8 +86,8 @@ runReify n used = runNorm n used emptyEnv
 -- This function is for creating function types whose input and output types are simple.
 -- E.g., Nat -> Nat, Nat -> U
 -- No sanity check is performed, use carefully.
-valArrow :: Val -> Term -> Val
-valArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
+arrowTy :: Val -> Term -> Val
+arrowTy ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
 
 -- Helper function for evaluating closures
 evalCls :: Closure -> Val -> Result Val
@@ -137,7 +137,7 @@ doIndNat prop base ind = \case
         ty <- doApp prop neu
         baseTy <- doApp prop VZero
         indTy <- indStepTy prop
-        let propTy = valArrow VNat Universe
+        let propTy = arrowTy VNat Universe
         let prop' = Normal propTy prop
         let base' = Normal baseTy base
         let ind' = Normal indTy ind
@@ -171,7 +171,7 @@ doSubst prop pfA = \case
         -- The proposition (p x) (notice the type of p is A -> U)
         propATy <- doApp prop a
         propBTy <- doApp prop b
-        let propTy = valArrow ty Universe
+        let propTy = arrowTy ty Universe
             propNorm = Normal propTy prop
             pfANorm = Normal propATy pfA
         pure $ VNeutral propBTy (NSubst propNorm pfANorm eq)

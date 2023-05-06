@@ -12,6 +12,7 @@ module Lang (
     TyCtxEntry (..),
     Val (..),
     annotated,
+    fail',
 ) where
 
 import Data.Bifunctor (Bifunctor (second))
@@ -226,6 +227,11 @@ data TyCtxEntry
 -- FIXME: Consider changing this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
 type TyCtx = Env TyCtxEntry
 
+type Result v = (Either ErrMsg v)
+
+fail' :: ErrMsg -> Result v
+fail' = Left
+
 -- | Derivation tree
 -- Judegements in our language so far:
 -- 1. typing judegement \Gamma |- t <= T or \Gamma |- t => T
@@ -251,5 +257,3 @@ data DerivTree
     | -- | A pseudo judgement where a derivation gets stuck
       -- This should correspond to the case where an error msg is generated
       StuckJdg
-
-type Result v = (Either ErrMsg v)

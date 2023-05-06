@@ -15,7 +15,7 @@ import Lang (
     Val (VUniverse),
     annotated,
  )
-import Norm (eval, reify')
+import Norm (eval, reify, runEval, runReify)
 import TyCheck (infer, runTyCk, toEnv)
 
 -- | Two kinds of elements at toplevel
@@ -46,14 +46,14 @@ toplevel ctx top
     | valid top = case top of
         Definition name t -> do
             ty <- runTyCk (infer t) ctx
-            v <- eval (toEnv ctx) t
+            v <- runEval (eval t) (toEnv ctx)
             let ctx' = extend name (Def ty v) ctx
             Right (ctx', Void)
         Program t -> do
             ty <- runTyCk (infer t) ctx
-            v <- eval (toEnv ctx) t
-            ty' <- reify' (names ctx) VUniverse ty
-            v' <- reify' (names ctx) ty v
+            v <- runEval (eval t) (toEnv ctx)
+            ty' <- runReify (reify VUniverse ty) (names ctx)
+            v' <- runReify (reify ty v) (names ctx)
             Right (ctx, Output (As v' ty'))
     | otherwise = Left $ errMsgTop "toplevel definition must have type annotation" top
 

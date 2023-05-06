@@ -10,6 +10,10 @@ module Norm (
     doIndAbsurd,
     doIndNat,
     doSubst,
+    runEval,
+    runNorm,
+    runReify,
+    valArrow,
 ) where
 
 import Env
@@ -24,10 +28,12 @@ import Lang (
     Term (..),
     Ty,
     Val (..),
+    fail',
  )
 import Prelude hiding (lookup)
 
 -- | Computation of normalization
+-- `runNorm` take a list of used names and an environment
 newtype Norm v = Norm {runNorm :: [Name] -> Env Val -> Result v}
 
 instance Functor Norm where
@@ -48,6 +54,30 @@ instance Monad Norm where
 failure :: ErrMsg -> Norm v
 failure err = Norm $ \_ _ -> Left err
 
+lift :: Result v -> Norm v
+lift r = Norm $ \_ _ -> r
+
+getUsed :: Norm [Name]
+getUsed = Norm $ \used _ -> pure used
+
+getEnv :: Norm (Env Val)
+getEnv = Norm $ \_ env -> pure env
+
+-- evaluate with the given environment
+withEnv :: Env Val -> Norm v -> Norm v
+withEnv env (Norm comp) = Norm $ \used _ -> comp used env
+
+withUsed :: [Name] -> Norm v -> Norm v
+withUsed used (Norm comp) = Norm $ \_ env -> comp used env
+
+-- Evaluation does not require used names to run
+runEval :: Norm v -> Env Val -> Result v
+runEval n = runNorm n []
+
+-- Reification does not require environment to run
+runReify :: Norm v -> [Name] -> Result v
+runReify n used = runNorm n used emptyEnv
+
 -- Helper function for generating function type vales such as A->B
 -- Function types are encoded as Pi-types.
 -- Since the return type of VPi is a closure (i.e., its normalzation is delayed),
@@ -56,43 +86,49 @@ failure err = Norm $ \_ _ -> Left err
 -- This function is for creating function types whose input and output types are simple.
 -- E.g., Nat -> Nat, Nat -> U
 -- No sanity check is performed, use carefully.
-vArrow :: Val -> Term -> Val
-vArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
+valArrow :: Val -> Term -> Val
+valArrow ty1 ty2 = VPi ty1 (Closure emptyEnv (Name "k") ty2)
 
 -- Helper function for evaluating closures
 evalCls :: Closure -> Val -> Result Val
 evalCls (Closure env name body) v =
     let env' = extend name v env
-     in eval env' body
+     in runEval (eval body) env'
 
--- For each elimination form (except NVar?)
--- There should be a separate helper function, to keep eval simple
+-- This function is used internally in this modual, so we don't need to lift the result of `evalCls` every time.
+evalCls' :: Closure -> Val -> Norm Val
+evalCls' (Closure env name body) v = withEnv (extend name v env) (eval body)
+
+-- For each elimination form, there is a `doXXX` helper function
+-- The original motivation is to keep the body of `eval` simpler,
+-- since all elimination forms are slightly more complex to handle.
+-- `doApp` is also used in type checking to reduce function applications.
 doApp :: Val -> Val -> Result Val
 doApp f a = case f of
     VLam cls -> evalCls cls a
     VNeutral (VPi tyA cls) func -> do
         tyB <- evalCls cls a
         let aNorm = Normal tyA a
-        Right $ VNeutral tyB (NApp func aNorm)
-    t -> Left $ errMsgNorm "applying a non-function" t
+        pure $ VNeutral tyB (NApp func aNorm)
+    t -> fail' $ errMsgNorm "applying a non-function" t
 
 doFst :: Val -> Result Val
 doFst = \case
-    VMkPair l _ -> Right l
-    VNeutral (VSigma ty _) p -> Right $ VNeutral ty (NFst p)
-    t -> Left $ errMsgNorm "projecting a non-pair value" t
+    VMkPair l _ -> pure l
+    VNeutral (VSigma ty _) p -> pure $ VNeutral ty (NFst p)
+    t -> fail' $ errMsgNorm "projecting a non-pair value" t
 
 doSnd :: Val -> Result Val
 doSnd = \case
-    VMkPair _ r -> Right r
+    VMkPair _ r -> pure r
     VNeutral (VSigma tyA cls) p -> do
         tyB <- evalCls cls tyA
-        Right $ VNeutral tyB (NSnd p)
-    t -> Left $ errMsgNorm "projecting a non-pair value" t
+        pure $ VNeutral tyB (NSnd p)
+    t -> fail' $ errMsgNorm "projecting a non-pair value" t
 
 doIndNat :: Val -> Val -> Val -> Val -> Result Val
 doIndNat prop base ind = \case
-    VZero -> Right base
+    VZero -> pure base
     VSucc n -> do
         a <- doIndNat prop base ind n
         f <- doApp ind n
@@ -101,12 +137,12 @@ doIndNat prop base ind = \case
         ty <- doApp prop neu
         baseTy <- doApp prop VZero
         indTy <- indStepTy prop
-        let propTy = vArrow VNat Universe
+        let propTy = valArrow VNat Universe
         let prop' = Normal propTy prop
         let base' = Normal baseTy base
         let ind' = Normal indTy ind
-        Right $ VNeutral ty (NIndNat prop' base' ind' n)
-    t -> Left $ errMsgNorm "using induction principle for nat on non-nat value" t
+        pure $ VNeutral ty (NIndNat prop' base' ind' n)
+    t -> fail' $ errMsgNorm "using induction principle for nat on non-nat value" t
 
 -- Helper function for constructing the types for the inductive step of natural numbers
 -- 1st param: a property of natural numbers (normalzed to value)
@@ -126,182 +162,191 @@ indStepTy pVal =
         pVar = Var p
         t = Pi n Nat (Pi (Name "_dummy") (App pVar nVar) (App pVar (Succ nVar)))
         env = Env [(Name "p", pVal)]
-     in eval env t
+     in runEval (eval t) env
 
 doSubst :: Val -> Val -> Val -> Result Val
 doSubst prop pfA = \case
-    VRefl -> Right pfA
+    VRefl -> pure pfA
     VNeutral (VEqual ty a b) eq -> do
         -- The proposition (p x) (notice the type of p is A -> U)
         propATy <- doApp prop a
         propBTy <- doApp prop b
-        let propTy = vArrow ty Universe
+        let propTy = valArrow ty Universe
             propNorm = Normal propTy prop
             pfANorm = Normal propATy pfA
-        Right $ VNeutral propBTy (NSubst propNorm pfANorm eq)
-    t -> Left $ errMsgNorm "substituing on non-equality proof" t
+        pure $ VNeutral propBTy (NSubst propNorm pfANorm eq)
+    t -> fail' $ errMsgNorm "substituing on non-equality proof" t
 
 doIndAbsurd :: Val -> Val -> Result Val
 doIndAbsurd prop = \case
     VNeutral VAbsurd neu ->
         let propNorm = Normal VUniverse prop
-         in Right $ VNeutral prop (NIndAbsurd propNorm neu)
-    t -> Left $ errMsgNorm "using induction principle for absuridity on non-absurd value" t
+         in pure $ VNeutral prop (NIndAbsurd propNorm neu)
+    t -> fail' $ errMsgNorm "using induction principle for absuridity on non-absurd value" t
 
 -- Eval function
-eval :: Env Val -> Term -> Result Val
-eval env (Var n) = lookup n env
-eval env (Pi n tyA tyB) = do
-    tyA' <- eval env tyA
-    Right $ VPi tyA' (Closure env n tyB)
-eval env (Lam n t) = Right $ VLam (Closure env n t)
-eval env (App f a) = do
-    f' <- eval env f
-    a' <- eval env a
-    doApp f' a'
-eval env (Sigma n tyA tyB) = do
-    tyA' <- eval env tyA
-    Right $ VSigma tyA' (Closure env n tyB)
-eval env (MkPair l r) = do
-    l' <- eval env l
-    r' <- eval env r
-    Right $ VMkPair l' r'
-eval env (Fst p) = do
-    p' <- eval env p
-    doFst p'
-eval env (Snd p) = do
-    p' <- eval env p
-    doSnd p'
-eval _ Nat = Right VNat
-eval _ Zero = Right VZero
-eval env (Succ n) = do
-    n' <- eval env n
-    Right (VSucc n')
-eval env (IndNat t1 t2 t3 t4) = do
-    t1' <- eval env t1
-    t2' <- eval env t2
-    t3' <- eval env t3
-    t4' <- eval env t4
-    doIndNat t1' t2' t3' t4'
-eval env (Equal ty t1 t2) = do
-    ty' <- eval env ty
-    t1' <- eval env t1
-    t2' <- eval env t2
-    Right $ VEqual ty' t1' t2'
-eval _ Refl = Right VRefl
-eval env (Subst t1 t2 t3) = do
-    t1' <- eval env t1
-    t2' <- eval env t2
-    t3' <- eval env t3
-    doSubst t1' t2' t3'
-eval _ Top = Right VTop
-eval _ Unit = Right VUnit
-eval _ Absurd = Right VAbsurd
-eval env (IndAbsurd t1 t2) = do
-    t1' <- eval env t1
-    t2' <- eval env t2
-    doIndAbsurd t1' t2'
-eval _ Atom = Right VAtom
-eval _ (Quote s) = Right (VQuote s)
-eval _ Universe = Right VUniverse
-eval env (As t _) = eval env t
+eval :: Term -> Norm Val
+eval (Var n) = do
+    env <- getEnv
+    lift $ lookup n env
+eval (Pi n tyA tyB) = do
+    tyA' <- eval tyA
+    env <- getEnv
+    pure $ VPi tyA' (Closure env n tyB)
+eval (Lam n t) = do
+    env <- getEnv
+    pure $ VLam (Closure env n t)
+eval (App f a) = do
+    f' <- eval f
+    a' <- eval a
+    lift $ doApp f' a'
+eval (Sigma n tyA tyB) = do
+    tyA' <- eval tyA
+    env <- getEnv
+    pure $ VSigma tyA' (Closure env n tyB)
+eval (MkPair l r) = do
+    l' <- eval l
+    r' <- eval r
+    pure $ VMkPair l' r'
+eval (Fst p) = do
+    p' <- eval p
+    lift $ doFst p'
+eval (Snd p) = do
+    p' <- eval p
+    lift $ doSnd p'
+eval Nat = pure VNat
+eval Zero = pure VZero
+eval (Succ n) = do
+    n' <- eval n
+    pure (VSucc n')
+eval (IndNat t1 t2 t3 t4) = do
+    t1' <- eval t1
+    t2' <- eval t2
+    t3' <- eval t3
+    t4' <- eval t4
+    lift $ doIndNat t1' t2' t3' t4'
+eval (Equal ty t1 t2) = do
+    ty' <- eval ty
+    t1' <- eval t1
+    t2' <- eval t2
+    pure $ VEqual ty' t1' t2'
+eval Refl = pure VRefl
+eval (Subst t1 t2 t3) = do
+    t1' <- eval t1
+    t2' <- eval t2
+    t3' <- eval t3
+    lift $ doSubst t1' t2' t3'
+eval Top = pure VTop
+eval Unit = pure VUnit
+eval Absurd = pure VAbsurd
+eval (IndAbsurd t1 t2) = do
+    t1' <- eval t1
+    t2' <- eval t2
+    lift $ doIndAbsurd t1' t2'
+eval Atom = pure VAtom
+eval (Quote s) = pure (VQuote s)
+eval Universe = pure VUniverse
+eval (As t _) = eval t
 
 -- AKA readback
 -- Convert normal forms back into terms, guided by type.
 -- The reification in dependent-type system is slightly different from simpler systems.
 -- NOTE: In DT-language, reification can happen during type checking, therefore it requires a typing context as its first argument.
-reify :: [Name] -> Normal -> Result Term
-reify ctx (Normal ty val) = reify' ctx ty val
+reify' :: Normal -> Norm Term
+reify' (Normal ty val) = reify ty val
 
 -- Notice that when pattern matching the second argument,
 -- we only match against those values that represent types.
-reify' :: [Name] -> Ty -> Val -> Result Term
+reify :: Ty -> Val -> Norm Term
 -- terms
-reify' ctx (VPi tyA cls@(Closure _ n _)) f = do
-    let xName = freshen ctx n
+reify (VPi tyA cls@(Closure _ n _)) f = do
+    used <- getUsed
+    let xName = freshen used n
     let xVal = VNeutral tyA (NVar xName)
-    retTy <- evalCls cls xVal
-    app <- doApp f xVal
-    body' <- reify' (xName : ctx) retTy app
-    Right $ Lam xName body'
-reify' ctx (VSigma tyA cls) p = do
-    l <- doFst p
-    r <- doSnd p
-    tyB <- evalCls cls l
-    l' <- reify' ctx tyA l
-    r' <- reify' ctx tyB r
-    Right $ MkPair l' r'
-reify' _ VNat VZero = Right Zero
-reify' ctx VNat (VSucc n) = do
-    n' <- reify' ctx VNat n
-    Right (Succ n')
-reify' _ (VEqual{}) VRefl = Right Refl
+    retTy <- evalCls' cls xVal
+    app <- lift $ doApp f xVal
+    body' <- withUsed (xName : used) (reify retTy app)
+    pure $ Lam xName body'
+reify (VSigma tyA cls) p = do
+    l <- lift $ doFst p
+    r <- lift $ doSnd p
+    tyB <- evalCls' cls l
+    l' <- reify tyA l
+    r' <- reify tyB r
+    pure $ MkPair l' r'
+reify VNat VZero = pure Zero
+reify VNat (VSucc n) = do
+    n' <- reify VNat n
+    pure (Succ n')
+reify (VEqual{}) VRefl = pure Refl
 -- any terms with unit type can only be Unit
-reify' _ VTop _ = Right Unit
-reify' _ VAtom (VQuote s) = Right (Quote s)
+reify VTop _ = pure Unit
+reify VAtom (VQuote s) = pure (Quote s)
 -- types
-reify' _ VUniverse VNat = Right Nat
-reify' _ VUniverse VTop = Right Top
-reify' _ VUniverse VAtom = Right Atom
-reify' _ VUniverse VAbsurd = Right Absurd
-reify' ctx VUniverse (VPi tyA cls@(Closure _ n _)) = do
-    tyA' <- reify' ctx VUniverse tyA
-    let xName = freshen ctx n
+reify VUniverse VNat = pure Nat
+reify VUniverse VTop = pure Top
+reify VUniverse VAtom = pure Atom
+reify VUniverse VAbsurd = pure Absurd
+reify VUniverse (VPi tyA cls@(Closure _ n _)) = do
+    tyA' <- reify VUniverse tyA
+    used <- getUsed
+    let xName = freshen used n
     let xVal = VNeutral tyA (NVar xName)
-    tyB <- evalCls cls xVal
-    tyB' <- reify' (xName : ctx) VUniverse tyB
-    Right $ Pi xName tyA' tyB'
-reify' ctx VUniverse (VSigma tyA cls@(Closure _ n _)) = do
-    tyA' <- reify' ctx VUniverse tyA
-    let xName = freshen ctx n
+    tyB <- evalCls' cls xVal
+    tyB' <- withUsed (xName : used) (reify VUniverse tyB)
+    pure $ Pi xName tyA' tyB'
+reify VUniverse (VSigma tyA cls@(Closure _ n _)) = do
+    tyA' <- reify VUniverse tyA
+    used <- getUsed
+    let xName = freshen used n
     let xVal = VNeutral tyA (NVar xName)
-    tyB <- evalCls cls xVal
-    tyB' <- reify' (xName : ctx) VUniverse tyB
-    Right $ Sigma xName tyA' tyB'
-reify' ctx VUniverse (VEqual ty t1 t2) = do
-    ty' <- reify' ctx VUniverse ty
-    t1' <- reify' ctx ty t1
-    t2' <- reify' ctx ty t2
-    Right $ Equal ty' t1' t2'
+    tyB <- evalCls' cls xVal
+    tyB' <- withUsed (xName : used) (reify VUniverse tyB)
+    pure $ Sigma xName tyA' tyB'
+reify VUniverse (VEqual ty t1 t2) = do
+    ty' <- reify VUniverse ty
+    t1' <- reify ty t1
+    t2' <- reify ty t2
+    pure $ Equal ty' t1' t2'
 -- universe
 -- NOTE: I'm not sure about this
-reify' _ VUniverse VUniverse = Right Universe
+reify VUniverse VUniverse = pure Universe
 -- neutral terms
 -- NOTE: I'm not sure how absurd should be handled properly
-reify' ctx VAbsurd (VNeutral VAbsurd neu) = do
-    neu' <- reifyNeu ctx neu
-    Right (As neu' Absurd)
-reify' ctx ty (VNeutral ty' neu) =
+reify VAbsurd (VNeutral VAbsurd neu) = do
+    neu' <- reifyNeu neu
+    pure (As neu' Absurd)
+reify ty (VNeutral ty' neu) =
     if ty == ty'
-        then reifyNeu ctx neu
-        else Left $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty')
+        then reifyNeu neu
+        else failure $ errMsgNorm "reifying neutral terms with incompatible types" (ty, ty')
 -- invalid patterns
-reify' _ ty v = Left $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
+reify ty v = failure $ errMsgNorm "cannot reify values with incompatible types" (v, ty)
 
-reifyNeu :: [Name] -> Neutral -> Result Term
-reifyNeu _ (NVar n) = Right $ Var n
-reifyNeu ctx (NApp f a) = do
-    f' <- reifyNeu ctx f
-    a' <- reify ctx a
-    Right $ App f' a'
-reifyNeu ctx (NFst p) = do
-    p' <- reifyNeu ctx p
-    Right $ Fst p'
-reifyNeu ctx (NSnd p) = do
-    p' <- reifyNeu ctx p
-    Right $ Snd p'
-reifyNeu ctx (NIndNat norm1 norm2 norm3 neu) = do
-    norm1' <- reify ctx norm1
-    norm2' <- reify ctx norm2
-    norm3' <- reify ctx norm3
-    neu' <- reifyNeu ctx neu
-    Right $ IndNat norm1' norm2' norm3' neu'
-reifyNeu ctx (NSubst norm1 norm2 neu) = do
-    norm1' <- reify ctx norm1
-    norm2' <- reify ctx norm2
-    neu' <- reifyNeu ctx neu
-    Right $ Subst norm1' norm2' neu'
-reifyNeu ctx (NIndAbsurd norm neu) = do
-    norm' <- reify ctx norm
-    neu' <- reifyNeu ctx neu
-    Right $ IndAbsurd norm' (As neu' Absurd)
+reifyNeu :: Neutral -> Norm Term
+reifyNeu (NVar n) = pure $ Var n
+reifyNeu (NApp f a) = do
+    f' <- reifyNeu f
+    a' <- reify' a
+    pure $ App f' a'
+reifyNeu (NFst p) = do
+    p' <- reifyNeu p
+    pure $ Fst p'
+reifyNeu (NSnd p) = do
+    p' <- reifyNeu p
+    pure $ Snd p'
+reifyNeu (NIndNat norm1 norm2 norm3 neu) = do
+    norm1' <- reify' norm1
+    norm2' <- reify' norm2
+    norm3' <- reify' norm3
+    neu' <- reifyNeu neu
+    pure $ IndNat norm1' norm2' norm3' neu'
+reifyNeu (NSubst norm1 norm2 neu) = do
+    norm1' <- reify' norm1
+    norm2' <- reify' norm2
+    neu' <- reifyNeu neu
+    pure $ Subst norm1' norm2' neu'
+reifyNeu (NIndAbsurd norm neu) = do
+    norm' <- reify' norm
+    neu' <- reifyNeu neu
+    pure $ IndAbsurd norm' (As neu' Absurd)

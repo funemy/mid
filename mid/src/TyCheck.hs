@@ -8,14 +8,14 @@ import Env
 import Err (errMsgTyCk)
 import Lang (
     Closure (..),
+    Ctx,
+    CtxEntry (..),
     Env (..),
     ErrMsg,
     Name (..),
     Neutral (..),
     Term (..),
     Ty,
-    TyCtx,
-    TyCtxEntry (..),
     Val (..),
  )
 import Norm (arrowTy, doApp, evalCls)
@@ -27,7 +27,7 @@ import Prelude hiding (lookup)
 --
 -- The definitions below is essentially a reader monad,
 -- but defining it ourself can remove some boilerplates.
-newtype TyCk v = TyCk {runTyCk :: TyCtx -> Result v}
+newtype TyCk v = TyCk {runTyCk :: Ctx -> Result v}
 
 instance Functor TyCk where
     fmap f (TyCk comp) = TyCk $ \ctx -> fmap f (comp ctx)
@@ -47,10 +47,10 @@ instance Monad TyCk where
 failure :: ErrMsg -> TyCk v
 failure err = TyCk $ \_ -> Left err
 
-with :: (TyCtx -> TyCtx) -> TyCk v -> TyCk v
+with :: (Ctx -> Ctx) -> TyCk v -> TyCk v
 with f (TyCk comp) = TyCk $ \ctx -> comp (f ctx)
 
-getCtx :: TyCk TyCtx
+getCtx :: TyCk Ctx
 getCtx = TyCk $ \ctx -> pure ctx
 
 -- Lifting a Result value to TyCk computation
@@ -152,7 +152,7 @@ lookupTy n = do
 
 -- Convert a typing context into an Env of Val.
 -- Used when calling `eval` in `infer`
-toEnv :: TyCtx -> Env Val
+toEnv :: Ctx -> Env Val
 toEnv (Env []) = Env []
 toEnv (Env ((n, e) : xs)) = extend n v rest
   where

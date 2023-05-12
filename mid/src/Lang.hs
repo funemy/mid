@@ -8,8 +8,8 @@ module Lang (
     Result,
     Term (..),
     Ty,
-    TyCtx,
-    TyCtxEntry (..),
+    Ctx,
+    CtxEntry (..),
     Val (..),
     annotated,
     fail',
@@ -209,23 +209,24 @@ type Ty = Val
 data Normal = Normal Ty Val
     deriving (Show, Eq)
 
--- | Typing context for dependent type checking
--- In DT system, typing context consists of two kinds of entries
--- 1. Variable declarations (abstractions?),
--- i.e., mappings from variable names to their types, introduced by Lam, Pi, and Sigma.
--- 2. Definitions, i.e., mappings from variable names to their definitions (values)
+-- | Context for either dependent type checking or evaluation
+-- A context may consist of two kinds of entries
+-- 1. Declaration, i.e., mappings from variable names to their types, introduced by Pi, and Sigma.
+-- 2. Definition, i.e., mappings from variable names to their definitions (type + value)
 --
--- The reason for having the definition ctx is that we can have expressions in the types now.
+-- The reason for having definitions is that dependent types can involve expressions.
 -- Those expressions might refer to existing definitions (e.g., calling a type-level function.)
--- We could in theory having two contexts and manage them separately,
--- but that would complicate things like shadowing and computing used names.
-data TyCtxEntry
+-- You can see a usage of `Def` ctor in `Toplevel.hs` where we add definitions into the context,
+-- so that the rest of the program can refer to them (even in the types).
+--
+-- Design-wise, we could in theory having two separated contexts for Decls and Defs, but that would
+-- complicate things like shadowing and computing used names while having no obvious benefit.
+data CtxEntry
     = Decl Ty
     | Def Ty Val
     deriving (Show)
 
--- FIXME: Consider changing this name, as there isn't a clear distinction between typing ctx vs evaluation ctx.
-type TyCtx = Env TyCtxEntry
+type Ctx = Env CtxEntry
 
 type Result v = (Either ErrMsg v)
 
@@ -247,7 +248,7 @@ fail' = Left
 data DerivTree
     = -- | Typing judgement
       -- sub-derivations, typing context, term, type
-      TyJdg [DerivTree] TyCtx Term Term
+      TyJdg [DerivTree] Ctx Term Term
     | -- | Judgemental equality
       -- sub-derivations, lhs (term), rhs (term), type
       EqJdg [DerivTree] Term Term Term

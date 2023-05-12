@@ -8,10 +8,10 @@ module Toplevel (
 import Env (Result, emptyEnv, extend, names)
 import Err (errMsgTop)
 import Lang (
+    Ctx,
+    CtxEntry (Def),
     Name,
     Term (..),
-    TyCtx,
-    TyCtxEntry (Def),
     Val (VUniverse),
     annotated,
  )
@@ -41,7 +41,7 @@ valid :: Toplevel -> Bool
 valid (Definition _ t) = annotated t
 valid (Program _) = True
 
-toplevel :: TyCtx -> Toplevel -> Result (TyCtx, Output)
+toplevel :: Ctx -> Toplevel -> Result (Ctx, Output)
 toplevel ctx top
     | valid top = case top of
         Definition name t -> do
@@ -70,7 +70,7 @@ runWithDefs ds ps = do
     (_, outs) <- go emptyEnv [] tops
     return outs
   where
-    go :: TyCtx -> [Output] -> [Toplevel] -> Result (TyCtx, [Output])
+    go :: Ctx -> [Output] -> [Toplevel] -> Result (Ctx, [Output])
     go ctx outs [] = return (ctx, outs)
     go ctx outs (x : xs) = do
         (ctx', out) <- toplevel ctx x

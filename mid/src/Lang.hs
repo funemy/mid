@@ -80,15 +80,22 @@ data Term
       As Term Term
     deriving (Eq)
 
--- A helper function for pretty printing Nats
-toInt :: Term -> Int
-toInt Zero = 0
-toInt (Succ x) = 1 + toInt x
-toInt _ = error "Cannot print ill-formed natural numbers."
-
+-- | Check if the given term has a type annotation
 annotated :: Term -> Bool
 annotated (As _ _) = True
 annotated _ = False
+
+-- A helper function for pretty printing Nats
+toIntStr :: Term -> String
+toIntStr t = case aux (0, Nothing) t of
+    (acc, Nothing) -> show acc
+    (acc, Just v) -> printf "(%s + %d)" (show v) acc
+  where
+    aux :: (Int, Maybe Name) -> Term -> (Int, Maybe Name)
+    aux r Zero = r
+    aux (acc, _) (Var v) = (acc, Just v)
+    aux (acc, v) (Succ n) = aux (acc + 1, v) n
+    aux _ _ = error "Cannot print ill-formed natural number."
 
 instance Show Term where
     show (Var s) = show s
@@ -106,8 +113,7 @@ instance Show Term where
     show (Snd p) = printf "snd %s" (show p)
     show Nat = "Nat"
     show Zero = "0"
-    show (Succ v@(Var _)) = "succ " ++ show v
-    show n@(Succ _) = show $ toInt n
+    show n@(Succ _) = toIntStr n
     show (IndNat ty t1 t2 t3) = printf "(ind-nat (%s) %s (%s) %s)" (show ty) (show t1) (show t2) (show t3)
     show (Equal ty t1 t2) = printf "%s≡%s:%s" (show t1) (show t2) (show ty)
     show Refl = "refl"

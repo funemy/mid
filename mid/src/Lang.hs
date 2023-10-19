@@ -142,6 +142,15 @@ data Closure = Closure
 
 -- Neutral terms are terms in elimination form, but cannot be reduced.
 -- E.g., an application whose first element is a variable.
+-- NOTE:
+-- The intuitiion of why `Neutral` do not carry a type:
+-- - Type is only used for eta-expansion.
+-- - For all neutral terms other than NVar, the sub-neutral term is at the target position of an eliminator.
+-- - Therefore, if we eta-expand them, we will need to immediately beta-reduce them, which is pointless.
+-- - As a result, there's no point of eta-expanding those neutral terms, hence those neutrals not carrying types.
+-- - For variables, the idea is similar. We don't want to naively eta-expand all variables, since some of them
+-- -  might be in the target position (e.g. (App f x) where f is a variable). We only want eta-expand when we
+-- -  are confident that this variable is also in normal form (i.e., a variable that's not in the target position).
 data Neutral
     = NVar Name
     | NApp Neutral Normal

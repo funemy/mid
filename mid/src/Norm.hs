@@ -95,7 +95,7 @@ evalCls (Closure env name body) v =
     let env' = extend name v env
      in runEval (eval body) env'
 
--- This function is used internally in this modual, so we don't need to lift the result of `evalCls` every time.
+-- This function is used internally in this module, so we don't need to lift the result of `evalCls` every time.
 evalCls' :: Closure -> Val -> Norm Val
 evalCls' (Closure env name body) v = withEnv (extend name v env) (eval body)
 
